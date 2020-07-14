@@ -169,9 +169,10 @@ EVERY_N_SECONDS(15){
 
 // обработчик будильника "рассвет"
 void LAMP::alarmWorker(){
-    // static CHSV GSHMEM.dawnColorMinus[6];                                            // цвет "рассвета"
-    // static uint8_t GSHMEM.dawnCounter = 0;                                           // счётчик первых шагов будильника
-    // static time_t GSHMEM.startmillis;
+    // временно статикой, дальше нужно будет переписать
+    static CHSV dawnColorMinus[6];                                            // цвет "рассвета"
+    static uint8_t dawnCounter = 0;                                           // счётчик первых шагов будильника
+    static time_t startmillis;
 
     if (mode != LAMPMODE::MODE_ALARMCLOCK){
       dawnFlag = false;
@@ -180,21 +181,21 @@ void LAMP::alarmWorker(){
 
     // проверка рассвета, первый вход в функцию
     if (!dawnFlag){
-      GSHMEM.startmillis = millis();
-      memset(GSHMEM.dawnColorMinus,0,sizeof(GSHMEM.dawnColorMinus));
-      GSHMEM.dawnCounter = 0;
+      startmillis = millis();
+      memset(dawnColorMinus,0,sizeof(dawnColorMinus));
+      dawnCounter = 0;
       FastLED.clear();
       brightness(BRIGHTNESS, false);   // не помню, почему тут стояло 255... надо будет проверить работу рассвета :), ниже есть доп. ограничение - DAWN_BRIGHT
       // величина рассвета 0-255
-      int16_t dawnPosition = map((millis()-GSHMEM.startmillis)/1000,0,300,0,255); // 0...300 секунд приведенные к 0...255
+      int16_t dawnPosition = map((millis()-startmillis)/1000,0,300,0,255); // 0...300 секунд приведенные к 0...255
       dawnPosition = constrain(dawnPosition, 0, 255);
-      GSHMEM.dawnColorMinus[0] = CHSV(map(dawnPosition, 0, 255, 10, 35),
+      dawnColorMinus[0] = CHSV(map(dawnPosition, 0, 255, 10, 35),
         map(dawnPosition, 0, 255, 255, 170),
         map(dawnPosition, 0, 255, 10, DAWN_BRIGHT)
       );
     }
 
-    if (((millis() - GSHMEM.startmillis) / 1000 > (5 + DAWN_TIMEOUT) * 60+30)) {
+    if (((millis() - startmillis) / 1000 > (5 + DAWN_TIMEOUT) * 60+30)) {
       // рассвет закончился
       stopAlarm();
       // #if defined(ALARM_PIN) && defined(ALARM_LEVEL)                    // установка сигнала в пин, управляющий будильником
@@ -210,16 +211,16 @@ void LAMP::alarmWorker(){
     // проверка рассвета
     EVERY_N_SECONDS(10){
       // величина рассвета 0-255
-      int16_t dawnPosition = map((millis()-GSHMEM.startmillis)/1000,0,300,0,255); // 0...300 секунд приведенные к 0...255
+      int16_t dawnPosition = map((millis()-startmillis)/1000,0,300,0,255); // 0...300 секунд приведенные к 0...255
       dawnPosition = constrain(dawnPosition, 0, 255);
-      GSHMEM.dawnColorMinus[0] = CHSV(map(dawnPosition, 0, 255, 10, 35),
+      dawnColorMinus[0] = CHSV(map(dawnPosition, 0, 255, 10, 35),
         map(dawnPosition, 0, 255, 255, 170),
         map(dawnPosition, 0, 255, 10, DAWN_BRIGHT)
       );
-      GSHMEM.dawnCounter++; //=GSHMEM.dawnCounter%(sizeof(GSHMEM.dawnColorMinus)/sizeof(CHSV))+1;
+      dawnCounter++; //=dawnCounter%(sizeof(dawnColorMinus)/sizeof(CHSV))+1;
 
-      for (uint8_t i = sizeof(GSHMEM.dawnColorMinus) / sizeof(CHSV) - 1; i > 0U; i--){
-          GSHMEM.dawnColorMinus[i]=((GSHMEM.dawnCounter > i)?GSHMEM.dawnColorMinus[i-1]:GSHMEM.dawnColorMinus[i]);
+      for (uint8_t i = sizeof(dawnColorMinus) / sizeof(CHSV) - 1; i > 0U; i--){
+          dawnColorMinus[i]=((dawnCounter > i)?dawnColorMinus[i-1]:dawnColorMinus[i]);
       }
     }
 
@@ -227,14 +228,14 @@ void LAMP::alarmWorker(){
     EVERY_N_SECONDS(1){
       if (timeProcessor.seconds00()) {
         CRGB letterColor;
-        hsv2rgb_rainbow(GSHMEM.dawnColorMinus[0], letterColor); // конвертация цвета времени, с учетом текущей точки рассвета
+        hsv2rgb_rainbow(dawnColorMinus[0], letterColor); // конвертация цвета времени, с учетом текущей точки рассвета
         sendStringToLamp(timeProcessor.getFormattedShortTime().c_str(), letterColor, true);
       }
     }
 #endif
 
     for (uint16_t i = 0U; i < NUM_LEDS; i++) {
-        leds[i] = GSHMEM.dawnColorMinus[i%(sizeof(GSHMEM.dawnColorMinus)/sizeof(CHSV))];
+        leds[i] = dawnColorMinus[i%(sizeof(dawnColorMinus)/sizeof(CHSV))];
     }
     dawnFlag = true;
 }

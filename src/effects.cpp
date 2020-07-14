@@ -3240,5 +3240,3 @@ void EffectWorker::workerset(EFF_ENUM effect){
   worker->init(effect, myLamp.effects.getBrightness(), myLamp.effects.getSpeed(), myLamp.effects.getScale());
 
 }
-
-void stubRoutine(CRGB *, const char *){}

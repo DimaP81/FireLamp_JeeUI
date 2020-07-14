@@ -103,10 +103,6 @@ EFF_TIME                                      // Часы (служебный, �
 #endif
 } EFF_ENUM;
 
-/*
- * заглушка для "старых" эффектов
- */
-void stubRoutine(CRGB *, const char *);
 //-------------------------------------------------
 
 extern byte globEffIdx;
@@ -242,17 +238,6 @@ const char T_SMOKE[] PROGMEM = "Дым";
 #ifdef MIC_EFFECTS
 const char T_FREQ[] PROGMEM = "Частотный анализатор";
 #endif
-
-class SHARED_MEM {
-public:
-    union {
-        struct { // будильник "рассвет"
-            uint8_t dawnCounter;                                           // счётчик первых шагов будильника
-            time_t startmillis;
-            CHSV dawnColorMinus[6];
-		};
-	};
-};
 
 //! Basic Effect Calc class
 /**
