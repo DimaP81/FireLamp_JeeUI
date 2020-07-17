@@ -43,7 +43,7 @@ JeeUI2 lib used under MIT License Copyright (c) 2019 Marsel Akhkamov
 #include "buttons.h"
 #include "main.h"
 #ifdef USE_FTP
-#include "ftpServer.h"
+#include "ftpSrv.h"
 #endif
 
 // глобальные переменные для работы с ними в программе
@@ -86,6 +86,8 @@ void setup() {
 #ifdef USE_FTP
     ftp_setup(); // запуск ftp-сервера
 #endif
+
+    myLamp.effects.makeIndexFile();
 
     myLamp.events.setEventCallback(event_worker);
     myLamp.timeProcessor.attach_callback(std::bind(&LAMP::setIsEventsHandled, &myLamp, true));

@@ -3110,8 +3110,12 @@ void EffectFire::drawFrame(uint8_t pcnt, bool isColored) {                  // �
 /*
  * Создаем экземпляр класса калькулятора в зависимости от требуемого эффекта
  */
-void EffectWorker::workerset(EFF_ENUM effect){
-  switch (effect)
+void EffectWorker::workerset(uint16_t effect, const bool isCfgProceed){
+  if(worker && isCfgProceed){ // сначала сохраним текущий эффект
+    saveeffconfig(curEff);
+  }
+
+  switch (static_cast<EFF_ENUM>(effect%256)) // номер может быть больше чем ENUM из-за копирований, находим эффект по модулю
   {
   case EFF_ENUM::EFF_TIME :
     worker = std::unique_ptr<EffectTime>(new EffectTime());
@@ -3237,6 +3241,9 @@ void EffectWorker::workerset(EFF_ENUM effect){
     worker = std::unique_ptr<EffectCalc>(new EffectCalc());
   }
 
-  worker->init(effect, myLamp.effects.getBrightness(), myLamp.effects.getSpeed(), myLamp.effects.getScale());
-
+  if(worker){
+    if(isCfgProceed)
+      loadeffconfig(effect);
+    worker->init(static_cast<EFF_ENUM>(effect%256), myLamp.effects.getBrightness(), myLamp.effects.getSpeed(), myLamp.effects.getScale());
+  }
 }

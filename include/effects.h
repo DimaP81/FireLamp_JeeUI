@@ -43,6 +43,7 @@ JeeUI2 lib used under MIT License Copyright (c) 2019 Marsel Akhkamov
 #include <string.h>
 #include "LittleFS.h"
 #include "effects_types.h"
+#include "text_res.h"
 #include "../../include/LList.h"
 
 #define DEFAULT_SLIDER 127
@@ -50,7 +51,7 @@ JeeUI2 lib used under MIT License Copyright (c) 2019 Marsel Akhkamov
 
 static const char _R255[] PROGMEM = "[{'R':'127'}]";
 
-typedef enum _EFF_ENUM {
+typedef enum : uint8_t {
 EFF_NONE = (0U),                              // Специальный служебный эффект, не комментировать и индекс не менять константу!
 EFF_WHITE_COLOR,                              // Белый свет
 EFF_COLORS,                                   // Смена цвета
@@ -97,10 +98,11 @@ EFF_FIRE2018,                                 // Огонь 2018
 EFF_RINGS,                                    // Кодовый замок
 EFF_CUBE2,                                    // Куб 2D
 EFF_SMOKE,                                    // Дым
-EFF_TIME                                      // Часы (служебный, смещаем в конец)
+EFF_TIME = (253U)                             // Часы (служебный, смещаем в конец)
 #ifdef MIC_EFFECTS
-,EFF_FREQ                             // Частотный анализатор (служебный, смещаем в конец)
+,EFF_FREQ = (254U)                            // Частотный анализатор (служебный, смещаем в конец)
 #endif
+,EFF_NONE_LAST = (255U)                       // Специальный терминирующий эффект с индексом 255, ничего не должно быть ниже него, всего предполагается 253 основных эффекта, 0 и 255 исключены
 } EFF_ENUM;
 
 //-------------------------------------------------
@@ -188,56 +190,9 @@ class EffectDesc{
 #define EFF_ENABLED (EFF_FLG_INIT | EFF_FLG_SEL | EFF_FLG_FAV)
 #define EFF_ENABLED_R (EFF_ENABLED | EFF_FLG_RVAL)
 
-const char T_SPARKLES[] PROGMEM = "Конфетти";
-const char T_FIRE[] PROGMEM = "Огненная лампа";
-const char T_EVERYTHINGFALL[] PROGMEM = "Эффектопад";
-const char T_RAINBOW_2D[] PROGMEM = "Радуга 2D";
-const char T_COLORS[] PROGMEM = "Цвета";
-const char T_PULSE[] PROGMEM = "Пульс";
-const char T_MATRIX[] PROGMEM = "Матрица";
-const char T_SNOW[] PROGMEM = "Снегопад";
-const char T_SNOWSTORMSTARFALL[] PROGMEM = "Метель + Звездопад";
-const char T_LIGHTERS[] PROGMEM = "Светлячки";
-const char T_LIGHTER_TRACES[] PROGMEM = "Светлячки со шлейфом";
-const char T_PAINTBALL[] PROGMEM = "Пейнтбол";
-const char T_CUBE[] PROGMEM = "Блуждающий кубик";
-const char T_BBALS[] PROGMEM = "Прыгающие мячики";
-const char T_MADNESS[] PROGMEM = "Безумие 3D";
-const char T_RAINBOW[] PROGMEM = "Радуга 3D";
-const char T_RAINBOW_STRIPE[] PROGMEM = "Павлин 3D";
-const char T_ZEBRA[] PROGMEM = "Зебра 3D";
-const char T_FOREST[] PROGMEM = "Лес 3D";
-const char T_OCEAN[] PROGMEM = "Океан 3D";
-const char T_PLASMA[] PROGMEM = "Плазма 3D";
-const char T_CLOUDS[] PROGMEM = "Облака 3D";
-const char T_LAVA[] PROGMEM = "Лава 3D";
-const char T_SINUSOID3[] PROGMEM = "Синусоид 3";
-const char T_METABALLS[] PROGMEM = "Метасферы";
-const char T_SPIRO[] PROGMEM = "Спираль";
-const char T_RAINBOWCOMET[] PROGMEM = "Радужная комета";
-const char T_RAINBOWCOMET3[] PROGMEM = "Три кометы";
-const char T_WHITE_COLOR[] PROGMEM = "Белая лампа";
-const char T_PRIZMATA[] PROGMEM = "Призмата";
-const char T_FLOCK[] PROGMEM = "Стая";
-const char T_SWIRL[] PROGMEM = "Водоворот";
-const char T_DRIFT[] PROGMEM = "Дрифт";
-const char T_DRIFT2[] PROGMEM = "Дрифт 2";
-const char T_TWINKLES[] PROGMEM = "Мерцание";
-const char T_RADAR[] PROGMEM = "Радар";
-const char T_WAVES[] PROGMEM = "Волны";
-const char T_FIRE2012[] PROGMEM = "Огонь 2012";
-const char T_RAIN[] PROGMEM = "Дождь";
-const char T_COLORRAIN[] PROGMEM = "Цветной дождь";
-const char T_STORMYRAIN[] PROGMEM = "Тучка в банке";
-const char T_FIRE2018[] PROGMEM = "Огонь 2018";
-const char T_RINGS[] PROGMEM = "Кодовый замок";
-const char T_CUBE2[] PROGMEM = "Куб 2D";
-const char T_TIME[] PROGMEM = "Часы";
-const char T_SMOKE[] PROGMEM = "Дым";
-
-#ifdef MIC_EFFECTS
-const char T_FREQ[] PROGMEM = "Частотный анализатор";
-#endif
+// Полный формат для пользовательского (id=3...7) параметра имеет вид: {\"id\":3,\"t\":0,\"val\":127,\"min\":1,\"max\":255,\"nm\":\"Параметр\"}
+// @nb@ - будет заменен на реальный номер эффекта, @name@ - на дефолтное имя эффекта
+static const char DEFAULT_CFG[] PROGMEM = "{\"nb\":@nb@,\"name\":\"@name@\",\"flags\"=255,\"ctrls\":[{\"id\":0,\"val\":\"127\"},{\"id\":1,\"val\":\"127\"},{\"id\":2,\"val\":\"127\"}]}";
 
 //! Basic Effect Calc class
 /**
@@ -287,6 +242,18 @@ public:
      *
     */
     void init(EFF_ENUM _eff, byte _brt, byte _spd, byte _scl);
+
+    /*
+    *  получить дефолтный конфиг для эффекта
+    */
+    virtual const String defaultuiconfig(){
+        return String(FPSTR(DEFAULT_CFG));
+    }
+
+    /*
+    *  получить имя эффекта
+    */
+    virtual const String getname() { return String(F("@name@")); }
 
     /**
      * load метод, по умолчанию пустой. Вызывается автоматом из init(), в дочернем классе можно заменять на процедуру первой загрузки эффекта (вместо того что выполняется под флагом load)
@@ -398,6 +365,8 @@ public:
 class EffectFreq : public EffectCalc {
 private:
     int8_t peakX[2][WIDTH];
+
+    const String getname() override {return String(FPSTR(T_FREQ));}
     bool freqAnalyseRoutine(CRGB *leds, EffectDesc *param);
     void load() override;
 public:
@@ -411,6 +380,8 @@ private:
     float curTimePos; // текущая позиция вывода
     CRGB hColor[1]; // цвет часов и минут
     CRGB mColor[1]; // цвет часов и минут
+
+    const String getname() override {return String(FPSTR(T_TIME));}
     bool timePrintRoutine(CRGB *leds, EffectDesc *param);
     void load() override;
 public:
@@ -419,6 +390,7 @@ public:
 
 class EffectMetaBalls : public EffectCalc {
 private:
+    const String getname() override {return String(FPSTR(T_METABALLS));}
     bool metaBallsRoutine(CRGB *leds, EffectDesc *param);
 
 public:
@@ -427,6 +399,7 @@ public:
 
 class EffectSinusoid3 : public EffectCalc {
 private:
+    const String getname() override {return String(FPSTR(T_SINUSOID3));}
     bool sinusoid3Routine(CRGB *leds, EffectDesc *param);
 
 public:
@@ -446,6 +419,8 @@ private:
     float bballsCOR[bballsMaxNUM_BALLS] ;               // Coefficient of Restitution (bounce damping)
     long  bballsTLast[bballsMaxNUM_BALLS] ;             // The clock time of the last ground strike
     float bballsShift[bballsMaxNUM_BALLS];
+    
+    const String getname() override {return String(FPSTR(T_BBALS));}
     bool bBallsRoutine(CRGB *leds, EffectDesc *param);
 
 public:
@@ -455,6 +430,7 @@ public:
 
 class EffectLightBalls : public EffectCalc {
 private:
+    const String getname() override {return String(FPSTR(T_PAINTBALL));}
     bool lightBallsRoutine(CRGB *leds, EffectDesc *param);
 
 public:
@@ -462,14 +438,14 @@ public:
 };
 
 class EffectFire : public EffectCalc {
-
+private:
   uint8_t pcnt;
   uint8_t shiftHue[HEIGHT];                              // массив дороожки горизонтального смещения пламени (hueMask)
   uint8_t line[WIDTH];
   uint8_t shiftValue[HEIGHT];                            // массив дороожки горизонтального смещения пламени (hueValue)
   unsigned char matrixValue[8][16];
 
-private:
+    const String getname() override {return String(FPSTR(T_FIRE));}
     void drawFrame(uint8_t pcnt, bool isColored);
     void generateLine();
     void shiftUp();
@@ -489,6 +465,8 @@ private:
     uint8_t currentRadius = 4;
     uint8_t _pulse_hue = 0;
     uint8_t _pulse_hueall = 0;
+
+    const String getname() override {return String(FPSTR(T_PULSE));}
     bool pulseRoutine(CRGB *leds, EffectDesc *param);
 
 public:
@@ -501,6 +479,8 @@ private:
     int16_t ballColor;
     int8_t vectorB[2U];
     float coordB[2U];
+
+    const String getname() override {return String(FPSTR(T_CUBE));}
     bool ballRoutine(CRGB *leds, EffectDesc *param);
 
 public:
@@ -513,6 +493,8 @@ private:
     int8_t vector[BALLS_AMOUNT][2U];
     float coord[BALLS_AMOUNT][2U];
     int16_t ballColors[BALLS_AMOUNT];
+
+    const String getname() override {return String(FPSTR(T_LIGHTER_TRACES));}
     bool lighterTracersRoutine(CRGB *leds, EffectDesc *param);
 
 public:
@@ -523,6 +505,8 @@ public:
 class EffectRainbow : public EffectCalc {
 private:
     float hue; // вещественное для малых скоростей, нужно приведение к uint8_t по месту
+    
+    const String getname() override {return String(FPSTR(T_RAINBOW_2D));}
     bool rainbowHorVertRoutine(bool isVertical);
     bool rainbowDiagonalRoutine(CRGB *leds, EffectDesc *param);
 
@@ -533,6 +517,8 @@ public:
 class EffectColors : public EffectCalc {
 private:
     uint8_t ihue;
+
+    const String getname() override {return String(FPSTR(T_COLORS));}
     bool colorsRoutine(CRGB *leds, EffectDesc *param);
 
 public:
@@ -542,6 +528,8 @@ public:
 
 class EffectWhiteColorStripe : public EffectCalc {
 private:
+
+    const String getname() override {return String(FPSTR(T_WHITE_COLOR));}
     bool whiteColorStripeRoutine(CRGB *leds, EffectDesc *param);
 
 public:
@@ -550,6 +538,8 @@ public:
 
 class EffectMatrix : public EffectCalc {
 private:
+
+    const String getname() override {return String(FPSTR(T_MATRIX));}
     bool matrixRoutine(CRGB *leds, EffectDesc *param);
 
 public:
@@ -558,6 +548,8 @@ public:
 
 class EffectSnow : public EffectCalc {
 private:
+
+    const String getname() override {return String(FPSTR(T_SNOW));}
     bool snowRoutine(CRGB *leds, EffectDesc *param);
     float snowShift = 0.0; // сдвиг снега
 public:
@@ -566,6 +558,7 @@ public:
 
 class EffectSparcles : public EffectCalc {
 private:
+    const String getname() override {return String(FPSTR(T_SPARKLES));}
     bool sparklesRoutine(CRGB *leds, EffectDesc *param);
 
 public:
@@ -575,6 +568,8 @@ public:
 class EffectEverythingFall : public EffectCalc {
 private:
     byte heat[WIDTH][HEIGHT];
+    
+    const String getname() override {return String(FPSTR(T_EVERYTHINGFALL));}
     bool fire2012WithPalette(CRGB *leds, EffectDesc *param);
 
 public:
@@ -595,10 +590,9 @@ private:
   // SMOOTHING; How much blending should be done between frames
   // Lower = more blending and smoother flames. Higher = less blending and flickery flames
   const uint8_t fireSmoothing = 90;
-
-
   uint8_t noise3d[NUM_LAYERS][WIDTH][HEIGHT];
-
+  
+  const String getname() override {return String(FPSTR(T_FIRE2012));}
   bool fire2012Routine(CRGB *leds, EffectDesc *param);
 
 public:
@@ -608,6 +602,7 @@ public:
 
 class EffectStarFall : public EffectCalc {
 private:
+    const String getname() override {return String(FPSTR(T_SNOWSTORMSTARFALL));}
     bool snowStormStarfallRoutine(CRGB *leds, EffectDesc *param);
 
 public:
@@ -622,6 +617,7 @@ private:
     uint8_t lightersColor[LIGHTERS_AM];
     float lightersPos[2U][LIGHTERS_AM];
 
+    const String getname() override {return String(FPSTR(T_LIGHTERS));}
     bool lightersRoutine(CRGB *leds, EffectDesc *param);
 
 public:
@@ -632,6 +628,31 @@ public:
 class Effect3DNoise : public EffectCalc {
 private:
 //    uint16_t XY(uint8_t x, uint8_t y);
+    const String getname() override {
+        switch (effect)
+        {
+        case EFF_ENUM::EFF_MADNESS :
+            return String(FPSTR(T_MADNESS));
+        case EFF_ENUM::EFF_RAINBOW :
+            return String(FPSTR(T_RAINBOW));
+        case EFF_ENUM::EFF_RAINBOW_STRIPE :
+            return String(FPSTR(T_RAINBOW_STRIPE));
+        case EFF_ENUM::EFF_ZEBRA :
+            return String(FPSTR(T_ZEBRA));
+        case EFF_ENUM::EFF_FOREST :
+            return String(FPSTR(T_FOREST));
+        case EFF_ENUM::EFF_OCEAN :
+            return String(FPSTR(T_OCEAN));
+        case EFF_ENUM::EFF_PLASMA :
+            return String(FPSTR(T_PLASMA));
+        case EFF_ENUM::EFF_CLOUDS :
+            return String(FPSTR(T_CLOUDS));
+        case EFF_ENUM::EFF_LAVA :
+            return String(FPSTR(T_LAVA));
+        default:
+            return EffectCalc::getname();
+        }
+    }
     void fillNoiseLED();
     void fillnoise8();
 
@@ -673,6 +694,7 @@ private:
   float spirotheta1 = 0;
   float spirotheta2 = 0;
 
+  const String getname() {return String(FPSTR(T_SPIRO));}
   bool spiroRoutine(CRGB *leds, EffectDesc *param);
 
 public:
@@ -684,6 +706,7 @@ class EffectPrismata : public EffectCalc {
 private:
   byte spirohueoffset = 0;
 
+  const String getname() {return String(FPSTR(T_PRIZMATA));}
   bool prismataRoutine(CRGB *leds, EffectDesc *param);
 
 public:
@@ -700,6 +723,7 @@ private:
   bool predatorPresent;
   uint8_t hueoffset;
 
+  const String getname() {return String(FPSTR(T_FLOCK));}
   bool flockRoutine(CRGB *leds, EffectDesc *param);
 
 public:
@@ -729,7 +753,17 @@ private:
    const uint8_t e_centerX =  (WIDTH / 2) - 1;
    const uint8_t e_centerY = (HEIGHT / 2) - 1;
 
-
+    const String getname() override {
+        switch (effect)
+        {
+        case EFF_ENUM::EFF_RAINBOWCOMET :
+            return String(FPSTR(T_RAINBOWCOMET));
+        case EFF_ENUM::EFF_RAINBOWCOMET3 :
+            return String(FPSTR(T_RAINBOWCOMET3));
+        default:
+            return EffectCalc::getname();
+        }
+    }
     void drawFillRect2_fast(int8_t x1, int8_t y1, int8_t x2, int8_t y2, CRGB color);
     void FillNoise(int8_t layer);
     bool rainbowCometRoutine(CRGB *leds, EffectDesc *param);
@@ -742,6 +776,7 @@ public:
 
 class EffectSwirl : public EffectCalc {
 private:
+    const String getname() {return String(FPSTR(T_SWIRL));}
     bool swirlRoutine(CRGB *leds, EffectDesc *param);
 
 public:
@@ -754,6 +789,17 @@ private:
   uint8_t dri_phase;
   uint8_t _dri_speed;
   uint8_t _dri_delta;
+  const String getname() override {
+        switch (effect)
+        {
+        case EFF_ENUM::EFF_DRIFT :
+            return String(FPSTR(T_DRIFT));
+        case EFF_ENUM::EFF_DRIFT2 :
+            return String(FPSTR(T_DRIFT2));
+        default:
+            return EffectCalc::getname();
+        }
+    }
   bool incrementalDriftRoutine(CRGB *leds, EffectDesc *param);
   bool incrementalDriftRoutine2(CRGB *leds, EffectDesc *param);
 
@@ -767,6 +813,7 @@ private:
   uint8_t thue = 0U;
   uint8_t tnum;
   CRGB ledsbuff[NUM_LEDS];
+  const String getname() {return String(FPSTR(T_TWINKLES));}
   bool twinklesRoutine(CRGB *leds, EffectDesc *param);
 
 public:
@@ -781,6 +828,7 @@ private:
   uint8_t waveRotation;
   uint8_t whue;
   uint8_t waveTheta;
+  const String getname() {return String(FPSTR(T_WAVES));}
   bool wavesRoutine(CRGB *leds, EffectDesc *param);
 
 public:
@@ -792,6 +840,7 @@ class EffectRadar : public EffectCalc {
 private:
   uint8_t eff_offset;        // глобальная переменная для работы эффектов (обычно применяется для циклического пересчета hue, количества кадров и др...)
   uint8_t eff_theta;         // глобальная переменная угла для работы эффектов
+  const String getname() {return String(FPSTR(T_RADAR));}
   bool radarRoutine(CRGB *leds, EffectDesc *param);
 
 public:
@@ -813,6 +862,7 @@ private:
   uint32_t e_scaleY[NUM_LAYERS];
   uint8_t noise3d[NUM_LAYERS][WIDTH][HEIGHT];
 
+  const String getname() {return String(FPSTR(T_SMOKE));}
   void FillNoise(int8_t layer);     // TODO: join with Comet's
   bool multipleStreamSmokeRoutine(CRGB *leds, EffectDesc *param);
 
@@ -833,6 +883,7 @@ private:
   uint8_t fire18heat[NUM_LEDS];
   uint8_t noise3dx[NUM_LAYERS2][WIDTH][HEIGHT];
 
+  const String getname() {return String(FPSTR(T_FIRE2018));}
   bool fire2018Routine(CRGB *leds, EffectDesc *param);
 
 public:
@@ -853,6 +904,7 @@ private:
   uint8_t currentRing; // кольцо, которое в настоящий момент нужно провернуть
   uint8_t stepCount; // оставшееся количество шагов, на которое нужно провернуть активное кольцо - случайное от WIDTH/5 до WIDTH-3
 
+  const String getname() {return String(FPSTR(T_RINGS));}
   void ringsSet();
   bool ringsRoutine(CRGB *leds, EffectDesc *param);
 
@@ -874,6 +926,7 @@ private:
   bool movedirection;   // направление смещения
   bool direction; // направление вращения в текущем цикле (вертикаль/горизонталь)
 
+  const String getname() {return String(FPSTR(T_CUBE2));}
   void cubesize();
   bool cube2dRoutine(CRGB *leds, EffectDesc *param);
 
@@ -892,6 +945,19 @@ private:
   uint8_t noise3d[NUM_LAYERS][WIDTH][HEIGHT];
 
   uint8_t myScale8(uint8_t x);
+    const String getname() override {
+        switch (effect)
+        {
+        case EFF_ENUM::EFF_RAIN :
+            return String(FPSTR(T_RAIN));
+        case EFF_ENUM::EFF_COLORRAIN :
+            return String(FPSTR(T_COLORRAIN));
+        case EFF_ENUM::EFF_STORMYRAIN :
+            return String(FPSTR(T_STORMYRAIN));
+        default:
+            return EffectCalc::getname();
+        }
+    }
   void rain(byte backgroundDepth, byte maxBrightness, byte spawnFreq, byte tailLength, CRGB rainColor, bool splashes, bool clouds, bool storm, bool fixRC = false);
   bool coloredRainRoutine(CRGB *leds, EffectDesc *param);
   bool stormyRainRoutine(CRGB *leds, EffectDesc *param);
@@ -901,21 +967,59 @@ public:
     bool run(CRGB *ledarr, EffectDesc *opt=nullptr) override;
 };
 
+typedef enum : uint8_t {RANGE,EDIT,CHECKBOX} CONTROL_TYPE;
+
+class UIControl{
+private:
+    uint8_t id;
+    CONTROL_TYPE ctype;
+    String control_name;
+    String val;
+    String min;
+    String max;
+    String step;
+public:
+    UIControl(const uint8_t id, const CONTROL_TYPE ctype, const String &control_name, const String &val, const String &min, const String &max, const String &step)
+    {
+        this->id=id;
+        this->ctype = ctype;
+        this->control_name = String(control_name);
+
+        this->val = val;
+        this->min = min;
+        this->max = max;
+        this->step = step;
+    }
+    uint8_t getId() {return id;}
+};
 
 class EffectWorker {
 private:
     const uint8_t maxDim = ((WIDTH>HEIGHT)?WIDTH:HEIGHT);
+    typedef union {
+        uint8_t mask;
+        struct {
+            bool init:1;
+            bool copy:1;
+            bool canBeSelected:1;
+            bool isFavorite:1;
+            bool isRval:1;
+        };
+    } EFFFLAGS;
+    EFFFLAGS flags;
 
-    EFF_ENUM curEff = EFF_NONE;     ///< энумератор текущего эффекта
+    uint16_t curEff = (uint16_t)EFF_NONE;     ///< энумератор текущего эффекта
     int workIdx = 0;       ///< абсолютный номер эффекта по порядку (исполняемый)
     int selectIdx = 0;     ///< абсолютный номер эффекта по порядку (выбраный)
-    LList<EffectDesc*> effects;
+    LList<EffectDesc*> effects; // TODO: удалить
+    LList<UIControl*> controls;
+    String effectName; // имя эффекта (предварительно заданное или из конфига)
 
     /**
      * создает и инициализирует экземпляр класса выбранного эффекта
      *
     */
-    void workerset(EFF_ENUM effect);
+    void workerset(uint16_t effect, const bool isCfgProceed = true);
 
     EffectWorker(const EffectWorker&);  // noncopyable
     EffectWorker& operator=(const EffectWorker&);  // noncopyable
@@ -991,6 +1095,139 @@ public:
     ~EffectWorker() {}
 
     std::unique_ptr<EffectCalc> worker;           ///< указатель-класс обработчик текущего эффекта
+
+    void loadeffconfig(uint16_t nb, char *folder=nullptr){
+        
+        if (LittleFS.begin()) {
+            File configFile;
+            char filename[255];
+            if (folder == nullptr) {
+                sprintf_P(filename,PSTR("/eff/%05d.json"), nb);
+                configFile = LittleFS.open(filename, "r"); // PSTR("r") использовать нельзя, будет исключение!
+            } else {
+                sprintf_P(filename, PSTR("/%s/%05d.json"), folder, nb);
+                configFile = LittleFS.open(filename, "r"); // PSTR("r") использовать нельзя, будет исключение!
+            }
+            String cfg_str = configFile.readString();
+            configFile.close();
+
+            if (cfg_str == F("")){
+                LOG(println, F("Failed to open effects config file"));
+                saveeffconfig(nb, filename, worker->defaultuiconfig());
+                return;
+            }
+
+            DynamicJsonDocument doc(2048);
+            DeserializationError error = deserializeJson(doc, cfg_str);
+            if (error) {
+                LOG(print, F("deserializeJson error: "));
+                LOG(println, error.code());
+                return;
+            }
+
+            curEff = doc[F("nb")].as<uint16_t>();
+            flags.mask = doc[F("flags")].as<uint8_t>();
+            effectName = doc[F("name")].as<uint8_t>();
+            
+            // вычитываею список контроллов
+            // повторные - скипаем, нехватающие - создаем
+            // обязательные контролы 0, 1, 2 - яркость, скорость, масштаб, остальные пользовательские
+            JsonArray arr = doc[F("ctrls")].as<JsonArray>();
+            controls.clear();
+            uint8_t id_tst = 0x0; // пустой
+            for (size_t i = 0; i < arr.size(); i++) {
+                JsonObject item = arr[i];
+                uint8_t id = item[F("id")].as<uint8_t>();
+                if(!(id_tst&(1<<id))){ // проверка на существование контрола
+                    id_tst |= 1<<item[F("id")].as<uint8_t>(); // закладываемся не более чем на 8 контролов, этого хватит более чем :)
+                    String name = item.containsKey(F("name")) ?
+                        item[F("name")].as<String>() 
+                        : id == 0 ? String(F("Яркость"))
+                        : id == 1 ? String(F("Скорость"))
+                        : id == 2 ? String(F("Масштаб"))
+                        : String(F("Доп."))+String(id);
+                    String val = item.containsKey(F("val")) ?
+                        item[F("val")].as<String>()
+                        : id < 3 ? String(127)
+                        : String();
+                    String min = item.containsKey(F("min")) ?
+                        item[F("min")].as<String>()
+                        : id < 3 ? String(1)
+                        : String();
+                    String max = item.containsKey(F("max")) ?
+                        item[F("max")].as<String>()
+                        : id < 3 ? String(255)
+                        : String();
+                    String step = item.containsKey(F("step")) ?
+                        item[F("step")].as<String>()
+                        : id < 3 ? String(1)
+                        : String();
+                    controls.add(new UIControl(
+                        id,             // id
+                        ((id<3) ? CONTROL_TYPE::RANGE : item[F("type")].as<CONTROL_TYPE>()),     // type
+                        name,           // name
+                        val,            // value
+                        min,            // min
+                        max,            // max
+                        step            // step
+                    ));
+                }
+            }
+            doc.clear();
+            // тест стандартных контроллов
+            for(int8_t id=0;id<3;id++){
+                if(!((id_tst>>id)&1)){ // не найден контрол, нужно создать
+                    controls.add(new UIControl(
+                        id,                                     // id
+                        CONTROL_TYPE::RANGE,                    // type
+                        id==0 ? F("Яркость") : id==1 ? F("Скорость") : F("Масштаб"),           // name
+                        String(127),                            // value
+                        String(1),                              // min
+                        String(255),                            // max
+                        String(1)                               // step
+                    ));
+                }
+            }
+            controls.sort([](UIControl *&a, UIControl *&b){ return a->getId() - b->getId();}); // сортирую по id
+        }
+    }
+
+    void makeIndexFile(const char *folder = nullptr){
+        if (LittleFS.begin()) {
+            File configFile;
+            char filename[255];
+            if (folder == nullptr) {
+                sprintf_P(filename,PSTR("eff_index.json"));
+                configFile = LittleFS.open(filename, "w"); // PSTR("r") использовать нельзя, будет исключение!
+            } else {
+                sprintf_P(filename, PSTR("/%s/eff_index.json"), folder);
+                configFile = LittleFS.open(filename, "w"); // PSTR("r") использовать нельзя, будет исключение!
+            }
+            configFile.print("[");
+            for (uint8_t i = ((uint8_t)EFF_ENUM::EFF_NONE+1); i < (uint8_t)EFF_ENUM::EFF_NONE_LAST; i++){ // EFF_NONE & EFF_NONE_LAST не сохраняем
+                workerset(static_cast<EFF_ENUM>(i),false); // пропускаем сохранение конфигов
+                if(worker->getname()!=String(F("@name@"))){
+                    configFile.printf_P(PSTR("%s{\"nb\":%d,\"nm\":\"%s\"}"),
+                        (char*)(i>1?F(","):F("")), i, worker->getname().c_str());
+                    LOG(printf_P, PSTR("%s{\"nb\":%d,\"nm\":\"%s\"}"),
+                        (char*)(i>1?F(","):F("")), i, worker->getname().c_str());
+                }
+            }
+            configFile.print("]");
+            configFile.flush();
+            configFile.close();
+            LOG(println,"");
+        }
+    }
+
+
+    void saveeffconfig(uint16_t nb, const char *filename, const String &cfg){
+        
+    }
+
+    void saveeffconfig(uint16_t nb, char *folder=nullptr){
+        
+    }
 
     void loadConfig(const char *cfg = nullptr) {
         if (LittleFS.begin()) {
