@@ -192,7 +192,7 @@ class EffectDesc{
 
 // Полный формат для пользовательского (id=3...7) параметра имеет вид: {\"id\":3,\"t\":0,\"val\":127,\"min\":1,\"max\":255,\"nm\":\"Параметр\"}
 // @nb@ - будет заменен на реальный номер эффекта, @name@ - на дефолтное имя эффекта
-static const char DEFAULT_CFG[] PROGMEM = "{\"nb\":@nb@,\"name\":\"@name@\",\"flags\"=255,\"ctrls\":[{\"id\":0,\"val\":\"127\"},{\"id\":1,\"val\":\"127\"},{\"id\":2,\"val\":\"127\"}]}";
+static const char DEFAULT_CFG[] PROGMEM = "{\"nb\":@nb@,\"name\":\"@name@\",\"ver\":\"@ver@\",\"flags\":255,\"ctrls\":[{\"id\":0,\"val\":\"127\"},{\"id\":1,\"val\":\"127\"},{\"id\":2,\"val\":\"127\"}]}";
 
 //! Basic Effect Calc class
 /**
@@ -232,6 +232,12 @@ public:
     EffectCalc(){}
 
     /**
+     * pre_init метод, вызывается отдельно после создания экземпляра эффекта до каких либо иных инициализаций
+     * это нужно чтобы объект понимал кто он и возможно было вычитать конфиг для мультиэфектов, никаких иных действий здесь не предполагается
+    */
+    void pre_init(EFF_ENUM _eff) {effect = _eff;}
+
+    /**
      * intit метод, вызывается отдельно после создания экземпляра эффекта для установки базовых переменных
      * в конце выполнения вызывает метод load() который может быть переопределен в дочернем классе
      * @param _eff - энумератор эффекта, может пригодится для мультиэффектов типа 3DNoise если эффект
@@ -254,6 +260,11 @@ public:
     *  получить имя эффекта
     */
     virtual const String getname() { return String(F("@name@")); }
+
+    /*
+    *  получить версию эффекта, используется для форсирования пересоздания конфига, даже если он уже существует, перенакрыть функцию и изменить версию
+    */
+    virtual const String getversion() { return String(F("@ver@")); }
 
     /**
      * load метод, по умолчанию пустой. Вызывается автоматом из init(), в дочернем классе можно заменять на процедуру первой загрузки эффекта (вместо того что выполняется под флагом load)
@@ -338,6 +349,7 @@ public:
      * деструктор по-умолчанию пустой, может быть переопределен
      */
     virtual ~EffectCalc() = default;
+    //virtual ~EffectCalc(){ LOG(println,PSTR("DEGUG: Effect was destroyed\n")); } // отладка, можно будет затем закомментировать
 };
 
 /**
@@ -990,7 +1002,14 @@ public:
         this->max = max;
         this->step = step;
     }
-    uint8_t getId() {return id;}
+    UIControl() : id(0), ctype(CONTROL_TYPE::RANGE), control_name(), val(), min(), max(), step() {}
+    const uint8_t getId() {return id;}
+    const CONTROL_TYPE gettype() {return ctype;}
+    const String &getname() {return control_name;}
+    const String &getval() {return val;}
+    const String &getmin() {return min;}
+    const String &getmax() {return max;}
+    const String &getstep() {return step;}
 };
 
 class EffectWorker {
@@ -1014,6 +1033,7 @@ private:
     LList<EffectDesc*> effects; // TODO: удалить
     LList<UIControl*> controls;
     String effectName; // имя эффекта (предварительно заданное или из конфига)
+    String version; // версия эффекта
 
     /**
      * создает и инициализирует экземпляр класса выбранного эффекта
@@ -1096,39 +1116,64 @@ public:
 
     std::unique_ptr<EffectCalc> worker;           ///< указатель-класс обработчик текущего эффекта
 
-    void loadeffconfig(uint16_t nb, char *folder=nullptr){
-        
+    int loadeffconfig(const uint16_t nb, const char *folder=nullptr){
+        uint16_t swapnb = nb>>8|nb<<8; // меняю местами 2 байта, так чтобы версия оказалась в имени файла позади
+
         if (LittleFS.begin()) {
             File configFile;
             char filename[255];
             if (folder == nullptr) {
-                sprintf_P(filename,PSTR("/eff/%05d.json"), nb);
-                configFile = LittleFS.open(filename, "r"); // PSTR("r") использовать нельзя, будет исключение!
+                sprintf_P(filename,PSTR("/eff/%04x.json"), swapnb);
             } else {
-                sprintf_P(filename, PSTR("/%s/%05d.json"), folder, nb);
-                configFile = LittleFS.open(filename, "r"); // PSTR("r") использовать нельзя, будет исключение!
+                sprintf_P(filename, PSTR("/%s/%04x.json"), folder, swapnb);
             }
+
+            DynamicJsonDocument doc(2048);
+
+            READALLAGAIN:
+
+            configFile = LittleFS.open(filename, "r"); // PSTR("r") использовать нельзя, будет исключение!
             String cfg_str = configFile.readString();
             configFile.close();
 
             if (cfg_str == F("")){
                 LOG(println, F("Failed to open effects config file"));
-                saveeffconfig(nb, filename, worker->defaultuiconfig());
-                return;
+                savedefaulteffconfig(nb, filename); // сохраняем дефолтный и пробуем снова
+                configFile = LittleFS.open(filename, "r"); // PSTR("r") использовать нельзя, будет исключение!
+                cfg_str = configFile.readString();
+                configFile.close();
             }
 
-            DynamicJsonDocument doc(2048);
             DeserializationError error = deserializeJson(doc, cfg_str);
             if (error) {
                 LOG(print, F("deserializeJson error: "));
                 LOG(println, error.code());
-                return;
+                savedefaulteffconfig(nb, filename);
+                configFile = LittleFS.open(filename, "r"); // PSTR("r") использовать нельзя, будет исключение!
+                cfg_str = configFile.readString();
+                configFile.close();
+                DeserializationError error = deserializeJson(doc, cfg_str);
+                if (error) {
+                    LOG(print, F("deserializeJson error, default corrupted: "));
+                    LOG(println, error.code());
+                    return 1; // ошибка
+                }
+            }
+
+            version = doc[F("ver")].as<String>();
+            if(worker->getversion()!=version){
+                doc.clear();
+                LOG(printf_P, PSTR("Wrong version of effect, rewrite with default (%s vs %s)\n"), version.c_str(), worker->getversion().c_str());
+                savedefaulteffconfig(nb, filename);
+                goto READALLAGAIN;
             }
 
             curEff = doc[F("nb")].as<uint16_t>();
-            flags.mask = doc[F("flags")].as<uint8_t>();
-            effectName = doc[F("name")].as<uint8_t>();
+            flags.mask = doc.containsKey(F("flags")) ? doc[F("flags")].as<uint8_t>() : 255;
+            effectName = doc.containsKey(F("name")) && doc[F("name")].as<String>()!="" ? doc[F("name")].as<String>() : worker->getname();
             
+            LOG(printf_P, PSTR("Load MEM: %s - CFG: %s - DEF: %s\n"), effectName.c_str(), doc[F("name")].as<String>().c_str(), worker->getname().c_str());
+
             // вычитываею список контроллов
             // повторные - скипаем, нехватающие - создаем
             // обязательные контролы 0, 1, 2 - яркость, скорость, масштаб, остальные пользовательские
@@ -1190,43 +1235,145 @@ public:
             }
             controls.sort([](UIControl *&a, UIControl *&b){ return a->getId() - b->getId();}); // сортирую по id
         }
+        return 0; // успешно
+    }
+
+    // получение пути и имени файла конфига эффекта
+    const String geteffectpathname(const uint16_t nb, const char *folder=nullptr){
+        uint16_t swapnb = nb>>8|nb<<8; // меняю местами 2 байта, так чтобы копии/верисии эффекта оказалась в имени файла позади
+        String filename;
+        char buffer[5]; 
+        if (folder != nullptr) {
+            filename.concat(F("/"));
+            filename.concat(folder);
+        }
+        filename.concat(F("/eff/"));
+        sprintf_P(buffer,PSTR("%04x"), swapnb);
+        filename.concat(buffer);
+        filename.concat(F(".json"));
+        return filename;
     }
 
     void makeIndexFile(const char *folder = nullptr){
         if (LittleFS.begin()) {
             File configFile;
-            char filename[255];
-            if (folder == nullptr) {
-                sprintf_P(filename,PSTR("eff_index.json"));
-                configFile = LittleFS.open(filename, "w"); // PSTR("r") использовать нельзя, будет исключение!
-            } else {
-                sprintf_P(filename, PSTR("/%s/eff_index.json"), folder);
-                configFile = LittleFS.open(filename, "w"); // PSTR("r") использовать нельзя, будет исключение!
+            String buffer;
+            String filename;
+            if (folder != nullptr) {
+                filename.concat(F("/"));
+                filename.concat(folder);
             }
-            configFile.print("[");
+            filename.concat(F("/eff_index.json"));
+
+            if(LittleFS.exists(filename)){ // если индексный файл существует, то на выход
+                return;
+            }
+            
+            // DynamicJsonDocument doc(4096); // для списка нужно больше 2кб... будем формировать наверное ручками :)
+            // JsonArray arr = doc.to<JsonArray>();
+            bool firstLine = true;
+            bool nameFromConfig = false;
+            buffer.concat(F("["));
             for (uint8_t i = ((uint8_t)EFF_ENUM::EFF_NONE+1); i < (uint8_t)EFF_ENUM::EFF_NONE_LAST; i++){ // EFF_NONE & EFF_NONE_LAST не сохраняем
-                workerset(static_cast<EFF_ENUM>(i),false); // пропускаем сохранение конфигов
+                workerset(i,false); // пропускаем сохранение конфигов
                 if(worker->getname()!=String(F("@name@"))){
-                    configFile.printf_P(PSTR("%s{\"nb\":%d,\"nm\":\"%s\"}"),
-                        (char*)(i>1?F(","):F("")), i, worker->getname().c_str());
-                    LOG(printf_P, PSTR("%s{\"nb\":%d,\"nm\":\"%s\"}"),
-                        (char*)(i>1?F(","):F("")), i, worker->getname().c_str());
+                    String cfgfilename = geteffectpathname(i, folder);
+                    if(!LittleFS.exists(cfgfilename)){ // если конфига эффекта не существует, создаем дефолтный
+                        savedefaulteffconfig(i, cfgfilename.c_str());
+                        delay(50); // задержка на запись в ФС, без нее может не корректно записывать
+                        nameFromConfig = false;
+                    } else { // конфиг существует, тогда читаем его
+                        loadeffconfig(i, folder);
+                        nameFromConfig = true;
+                    }
+
+                    // JsonObject var = arr.createNestedObject();
+                    // var[F("nb")] = i;
+                    // var[F("nm")] = nameFromConfig ? effectName.c_str() : worker->getname();
+
+                    if(!firstLine) buffer.concat(F(",")); // собираем JSON, чтобы записать его за один раз
+                    buffer.concat(F("{\"nb\":"));
+                    buffer.concat(i);
+                    buffer.concat(F(",\"nm\":\""));
+                    buffer.concat(nameFromConfig ? effectName.c_str() : worker->getname().c_str());
+                    buffer.concat(F("\"}"));
+
+                    firstLine = false; // сбрасываю признак перовой строки
                 }
             }
-            configFile.print("]");
+            buffer.concat(F("]"));
+            configFile = LittleFS.open(filename, "w"); // PSTR("w") использовать нельзя, будет исключение!
+            configFile.print(buffer);
+            // String cfg_str;
+            // serializeJson(doc, cfg_str);
+            // //LOG(println,cfg_str);
+            // configFile.print(cfg_str);
+            // doc.clear();
             configFile.flush();
             configFile.close();
-            LOG(println,"");
+            // LOG(println,"");
         }
     }
 
+    void savedefaulteffconfig(uint16_t nb, const char *filename){
+        // если конфиг не найден, то создаем дефолтный
+        // при этом предполагаем, что worker указывает на нужный эффект!!!
+        LOG(printf_P,PSTR("Create default config: %d %s\n"), nb, worker->getname().c_str());
 
-    void saveeffconfig(uint16_t nb, const char *filename, const String &cfg){
-        
+        if (LittleFS.begin()) {
+            File configFile;
+            String  cfg = worker->defaultuiconfig();
+            // workerset(nb,false); // пропускаем сохранение конфигов
+            // LOG(println,worker->getname());
+            cfg.replace(F("@name@"),worker->getname());
+            cfg.replace(F("@ver@"),worker->getversion());
+            cfg.replace(F("@nb@"), String(nb));
+            configFile = LittleFS.open(filename, "w"); // PSTR("w") использовать нельзя, будет исключение!
+            configFile.print(cfg);
+            configFile.flush();
+            configFile.close();
+        }
     }
 
     void saveeffconfig(uint16_t nb, char *folder=nullptr){
-        
+        // а тут уже будем писать рабочий конфиг исходя из того, что есть в памяти
+        uint16_t swapnb = nb>>8|nb<<8; // меняю местами 2 байта, так чтобы версия оказалась в имени файла позади
+        if (LittleFS.begin()) {
+            File configFile;
+            char filename[255];
+            if (folder == nullptr) {
+                sprintf_P(filename,PSTR("/eff/%04x.json"), swapnb);
+                configFile = LittleFS.open(filename, "w"); // PSTR("w") использовать нельзя, будет исключение!
+            } else {
+                sprintf_P(filename, PSTR("/%s/%04x.json"), folder, swapnb);
+                configFile = LittleFS.open(filename, "w"); // PSTR("w") использовать нельзя, будет исключение!
+            }
+
+            DynamicJsonDocument doc(2048);
+            doc[F("nb")] = nb;
+            doc[F("flags")] = flags.mask;
+            doc[F("name")] = effectName;
+            doc[F("ver")] = version;
+            JsonArray arr = doc.createNestedArray(F("ctrls"));
+            for (int i = 0; i < controls.size(); i++)
+            {
+                JsonObject var = arr.createNestedObject();
+                var[F("id")]=controls[i]->getId();
+                var[F("type")]=controls[i]->gettype();
+                var[F("name")]=controls[i]->getname();
+                var[F("val")]=controls[i]->getval();
+                var[F("min")]=controls[i]->getmin();
+                var[F("max")]=controls[i]->getmax();
+                var[F("step")]=controls[i]->getstep();
+            }
+            String cfg_str;
+            serializeJson(doc, cfg_str);
+            //LOG(println,cfg_str);
+            configFile.print(cfg_str);
+            doc.clear();
+            configFile.flush();
+            configFile.close();
+        }    
     }
 
     void loadConfig(const char *cfg = nullptr) {
@@ -1363,8 +1510,8 @@ public:
 
     void moveNext() { // следующий эффект, кроме canBeSelected==false
         workIdx = selectIdx = getNext();
+        workerset(effects[workIdx]->eff_nb);
         curEff = effects[workIdx]->eff_nb;
-        workerset(curEff);
     }
 
     int getPrev() { // предыдущий эффект, кроме canBeSelected==false
@@ -1380,8 +1527,8 @@ public:
 
     void movePrev() { // предыдущий эффект, кроме canBeSelected==false
         workIdx = selectIdx = getPrev();
+        workerset(effects[workIdx]->eff_nb);
         curEff = effects[workIdx]->eff_nb;
-        workerset(curEff);
     }
 
     int getBy(EFF_ENUM select){ // перейти по перечислению
@@ -1393,8 +1540,8 @@ public:
 
     void moveBy(EFF_ENUM select){ // перейти по перечислению
         workIdx = selectIdx = getBy(select);
+        workerset(effects[workIdx]->eff_nb);
         curEff = effects[workIdx]->eff_nb;
-        workerset(curEff);
     }
 
     int getByIdx(int idx){ // перейти по перечислению
@@ -1403,14 +1550,14 @@ public:
 
     void moveByIdx(int idx){ // перейти по перечислению
         workIdx = selectIdx = getByIdx(idx);
+        workerset(effects[workIdx]->eff_nb);
         curEff = effects[workIdx]->eff_nb;
-        workerset(curEff);
     }
 
     void moveSelected(){ // перейти по предворительно выбранному
         workIdx = selectIdx;
+        workerset(effects[workIdx]->eff_nb);
         curEff = effects[workIdx]->eff_nb;
-        workerset(curEff);
     }
 
     int getBy(byte cnt){ // перейти на количество шагов, к ближайшему большему (для DEMO)
@@ -1426,8 +1573,8 @@ public:
 
     void moveBy(byte cnt){ // перейти на количество шагов, к ближайшему большему (для DEMO)
         workIdx = selectIdx = getBy(cnt);
+        workerset(effects[workIdx]->eff_nb);
         curEff = effects[workIdx]->eff_nb;
-        workerset(curEff);
     }
 
     EffectDesc *getEffectByIdx(int idx){

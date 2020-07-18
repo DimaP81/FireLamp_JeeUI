@@ -3112,8 +3112,10 @@ void EffectFire::drawFrame(uint8_t pcnt, bool isColored) {                  // �
  */
 void EffectWorker::workerset(uint16_t effect, const bool isCfgProceed){
   if(worker && isCfgProceed){ // сначала сохраним текущий эффект
-    saveeffconfig(curEff);
+    saveeffconfig(curEff); // пишем конфиг только если это требуется, для индекса - пропускаем, там свой механизм
   }
+  if(worker)
+     worker.reset(); // освободим явно, т.к. 100% здесь будем пересоздавать
 
   switch (static_cast<EFF_ENUM>(effect%256)) // номер может быть больше чем ENUM из-за копирований, находим эффект по модулю
   {
@@ -3242,8 +3244,10 @@ void EffectWorker::workerset(uint16_t effect, const bool isCfgProceed){
   }
 
   if(worker){
-    if(isCfgProceed)
+    worker->pre_init(static_cast<EFF_ENUM>(effect%256));
+    if(isCfgProceed) // читаем конфиг только если это требуется, для индекса - пропускаем
       loadeffconfig(effect);
+    // окончательная инициализация эффекта тут
     worker->init(static_cast<EFF_ENUM>(effect%256), myLamp.effects.getBrightness(), myLamp.effects.getSpeed(), myLamp.effects.getScale());
   }
 }

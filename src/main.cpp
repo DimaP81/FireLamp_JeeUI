@@ -69,6 +69,8 @@ void setup() {
 #endif
 
     jee.init();
+    myLamp.effects.makeIndexFile(); // проверка и создание индексных файлов
+
     create_parameters(); // создаем дефолтные параметры, отсутствующие в текущем загруженном конфиге
 
     myLamp.effects.loadConfig();
@@ -86,8 +88,6 @@ void setup() {
 #ifdef USE_FTP
     ftp_setup(); // запуск ftp-сервера
 #endif
-
-    myLamp.effects.makeIndexFile();
 
     myLamp.events.setEventCallback(event_worker);
     myLamp.timeProcessor.attach_callback(std::bind(&LAMP::setIsEventsHandled, &myLamp, true));
