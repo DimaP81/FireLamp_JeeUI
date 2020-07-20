@@ -136,7 +136,7 @@ private:
 
     LAMPMODE mode = MODE_NORMAL; // текущий режим
     LAMPMODE storedMode = MODE_NORMAL; // предыдущий режим
-    EFF_ENUM storedEffect = EFF_NONE;
+    uint16_t storedEffect = (uint16_t)EFF_ENUM::EFF_NONE;
 
     PERIODICTIME enPeriodicTimePrint; // режим периодического вывода времени
 
@@ -336,8 +336,7 @@ public:
      * @param effnb - номер эффекта
      * skip - системное поле - пропуск фейдера
      */
-    void switcheffect(EFFSWITCH action = SW_NONE, bool fade = FADE, EFF_ENUM effnb = EFF_ENUM::EFF_NONE, bool skip = false);
-    void switcheffectIdx(EFFSWITCH action = SW_NONE, bool fade = FADE, int idx = 0, bool skip = false);
+    void switcheffect(EFFSWITCH action = SW_NONE, bool fade = FADE, uint16_t effnb = EFF_ENUM::EFF_NONE, bool skip = false);
 
     /*
      * включает/выключает "демо"-таймер

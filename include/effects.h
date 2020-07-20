@@ -46,10 +46,8 @@ JeeUI2 lib used under MIT License Copyright (c) 2019 Marsel Akhkamov
 #include "text_res.h"
 #include "../../include/LList.h"
 
-#define DEFAULT_SLIDER 127
-#define PARAM_BUFSIZE 128
-
-static const char _R255[] PROGMEM = "[{'R':'127'}]";
+// #define DEFAULT_SLIDER 127
+// #define PARAM_BUFSIZE 128
 
 typedef enum : uint8_t {
 EFF_NONE = (0U),                              // Специальный служебный эффект, не комментировать и индекс не менять константу!
@@ -106,89 +104,36 @@ EFF_TIME = (253U)                             // Часы (служебный, �
 } EFF_ENUM;
 
 //-------------------------------------------------
+class EffectWorker;
 
-extern byte globEffIdx;
 
-typedef union _effflags {
-    byte mask;
+typedef union {
+    uint8_t mask;
     struct {
-        bool init:1;
-        bool copy:1;
         bool canBeSelected:1;
         bool isFavorite:1;
-        bool isRval:1;
     };
-} effflags;
+} EFFFLAGS;
 
-class EffectDesc{
+class EffectListElem{
     public:
-    #pragma pack(push,1)
-    struct {
-        byte idx;
-        effflags flags;
-        EFF_ENUM eff_nb;
-        byte brightness;
-        byte speed;
-        byte scale;
-        byte rval;
-        const char *eff_name;
-    };
-    #pragma pack(pop)
+    uint16_t eff_nb; // номер эффекта, для копий наращиваем старший байт
+    EFFFLAGS flags; // флаги эффекта
 
-    EffectDesc(EFF_ENUM nb, const char *name, byte mask){
-        idx = globEffIdx++;
+    EffectListElem(uint16_t nb, uint8_t mask){
         eff_nb = nb;
         flags.mask = mask;
-        brightness = speed = scale = 127;
-        rval = flags.isRval? 127 : 0;
-        eff_name = name;
     }
-    EffectDesc(EffectDesc *base){
-        idx = globEffIdx++;
-        eff_nb = base->eff_nb;
-        flags = base->flags;
-        flags.copy = true;
-        brightness = base->brightness;
-        speed = base->speed;
-        scale = base->scale;
-        rval = base->rval;
 
-        if (base->flags.copy) {
-            eff_name = (char *)calloc(strlen(base->eff_name) + 1, 1);
-            strcpy((char *)eff_name, base->eff_name);
-        } else {
-            const String &tmp = FPSTR(base->eff_name);
-            eff_name = (char *)calloc(tmp.length() + 1, 1);
-            strcpy((char *)eff_name, tmp.c_str());
-        }
-    }
-    ~EffectDesc(){
-        if (flags.copy) {
-            delete eff_name;
-        }
+    EffectListElem(const EffectListElem *base){
+        eff_nb = ((((base->eff_nb >> 8) + 1 ) << 8 ) | (base->eff_nb&0xFF)); // в старшем байте увеличиваем значение на 1
+        flags = base->flags;
     }
     bool canBeSelected(){ return flags.canBeSelected; }
     void canBeSelected(bool val){ flags.canBeSelected = val; }
     bool isFavorite(){ return flags.isFavorite; }
     void isFavorite(bool val){ flags.isFavorite = val; }
-    bool isRval(){ return flags.isRval; }
-    String getName() {
-        if (!flags.copy) return FPSTR(eff_name);
-        String buffer;
-        buffer.concat(eff_name);
-        buffer.concat(F(" #"));
-        buffer.concat(String(idx));
-        return buffer;
-    }
 };
-
-#define EFF_FLG_INIT    (1 << 0)
-#define EFF_FLG_COPY    (1 << 1)
-#define EFF_FLG_SEL     (1 << 2)
-#define EFF_FLG_FAV     (1 << 3)
-#define EFF_FLG_RVAL    (1 << 4)
-#define EFF_ENABLED (EFF_FLG_INIT | EFF_FLG_SEL | EFF_FLG_FAV)
-#define EFF_ENABLED_R (EFF_ENABLED | EFF_FLG_RVAL)
 
 // Полный формат для пользовательского (id=3...7) параметра имеет вид: {\"id\":3,\"t\":0,\"val\":127,\"min\":1,\"max\":255,\"nm\":\"Параметр\"}
 // @nb@ - будет заменен на реальный номер эффекта, @name@ - на дефолтное имя эффекта
@@ -279,7 +224,7 @@ public:
      * @param ledarr - указатель на массив, пока не используется
      * @param opt - опция, пока не используется, вероятно нужно заменить на какую-нибудь расширяемую структуру
     */
-    virtual bool run(CRGB* ledarr, EffectDesc *opt=nullptr);
+    virtual bool run(CRGB* ledarr, EffectWorker *opt=nullptr);
 
     /**
      * drynrun метод, всеми любимая затычка-проверка на "пустой" вызов
@@ -379,10 +324,10 @@ private:
     int8_t peakX[2][WIDTH];
 
     const String getname() override {return String(FPSTR(T_FREQ));}
-    bool freqAnalyseRoutine(CRGB *leds, EffectDesc *param);
+    bool freqAnalyseRoutine(CRGB *leds, EffectWorker *param);
     void load() override;
 public:
-    bool run(CRGB *ledarr, EffectDesc *opt=nullptr) override;
+    bool run(CRGB *ledarr, EffectWorker *opt=nullptr) override;
 };
 #endif
 
@@ -394,28 +339,28 @@ private:
     CRGB mColor[1]; // цвет часов и минут
 
     const String getname() override {return String(FPSTR(T_TIME));}
-    bool timePrintRoutine(CRGB *leds, EffectDesc *param);
+    bool timePrintRoutine(CRGB *leds, EffectWorker *param);
     void load() override;
 public:
-    bool run(CRGB *ledarr, EffectDesc *opt=nullptr) override;
+    bool run(CRGB *ledarr, EffectWorker *opt=nullptr) override;
 };
 
 class EffectMetaBalls : public EffectCalc {
 private:
     const String getname() override {return String(FPSTR(T_METABALLS));}
-    bool metaBallsRoutine(CRGB *leds, EffectDesc *param);
+    bool metaBallsRoutine(CRGB *leds, EffectWorker *param);
 
 public:
-    bool run(CRGB *ledarr, EffectDesc *opt=nullptr) override;
+    bool run(CRGB *ledarr, EffectWorker *opt=nullptr) override;
 };
 
 class EffectSinusoid3 : public EffectCalc {
 private:
     const String getname() override {return String(FPSTR(T_SINUSOID3));}
-    bool sinusoid3Routine(CRGB *leds, EffectDesc *param);
+    bool sinusoid3Routine(CRGB *leds, EffectWorker *param);
 
 public:
-    bool run(CRGB *ledarr, EffectDesc *opt=nullptr) override;
+    bool run(CRGB *ledarr, EffectWorker *opt=nullptr) override;
 };
 
 class EffectBBalls : public EffectCalc {
@@ -433,20 +378,20 @@ private:
     float bballsShift[bballsMaxNUM_BALLS];
     
     const String getname() override {return String(FPSTR(T_BBALS));}
-    bool bBallsRoutine(CRGB *leds, EffectDesc *param);
+    bool bBallsRoutine(CRGB *leds, EffectWorker *param);
 
 public:
     void load();
-    bool run(CRGB *ledarr, EffectDesc *opt=nullptr) override;
+    bool run(CRGB *ledarr, EffectWorker *opt=nullptr) override;
 };
 
 class EffectLightBalls : public EffectCalc {
 private:
     const String getname() override {return String(FPSTR(T_PAINTBALL));}
-    bool lightBallsRoutine(CRGB *leds, EffectDesc *param);
+    bool lightBallsRoutine(CRGB *leds, EffectWorker *param);
 
 public:
-    bool run(CRGB *ledarr, EffectDesc *opt=nullptr) override;
+    bool run(CRGB *ledarr, EffectWorker *opt=nullptr) override;
 };
 
 class EffectFire : public EffectCalc {
@@ -461,11 +406,11 @@ private:
     void drawFrame(uint8_t pcnt, bool isColored);
     void generateLine();
     void shiftUp();
-    bool fireRoutine(CRGB *leds, EffectDesc *param);
+    bool fireRoutine(CRGB *leds, EffectWorker *param);
 
 public:
     void load() override;
-    bool run(CRGB *ledarr, EffectDesc *opt=nullptr) override;
+    bool run(CRGB *ledarr, EffectWorker *opt=nullptr) override;
 };
 
 class EffectPulse : public EffectCalc {
@@ -479,10 +424,10 @@ private:
     uint8_t _pulse_hueall = 0;
 
     const String getname() override {return String(FPSTR(T_PULSE));}
-    bool pulseRoutine(CRGB *leds, EffectDesc *param);
+    bool pulseRoutine(CRGB *leds, EffectWorker *param);
 
 public:
-    bool run(CRGB *ledarr, EffectDesc *opt=nullptr) override;
+    bool run(CRGB *ledarr, EffectWorker *opt=nullptr) override;
 };
 
 class EffectBall : public EffectCalc {
@@ -493,11 +438,11 @@ private:
     float coordB[2U];
 
     const String getname() override {return String(FPSTR(T_CUBE));}
-    bool ballRoutine(CRGB *leds, EffectDesc *param);
+    bool ballRoutine(CRGB *leds, EffectWorker *param);
 
 public:
     void load();
-    bool run(CRGB *ledarr, EffectDesc *opt=nullptr) override;
+    bool run(CRGB *ledarr, EffectWorker *opt=nullptr) override;
 };
 
 class EffectLighterTracers : public EffectCalc {
@@ -507,11 +452,11 @@ private:
     int16_t ballColors[BALLS_AMOUNT];
 
     const String getname() override {return String(FPSTR(T_LIGHTER_TRACES));}
-    bool lighterTracersRoutine(CRGB *leds, EffectDesc *param);
+    bool lighterTracersRoutine(CRGB *leds, EffectWorker *param);
 
 public:
     void load() override;
-    bool run(CRGB *ledarr, EffectDesc *opt=nullptr) override;
+    bool run(CRGB *ledarr, EffectWorker *opt=nullptr) override;
 };
 
 class EffectRainbow : public EffectCalc {
@@ -520,10 +465,10 @@ private:
     
     const String getname() override {return String(FPSTR(T_RAINBOW_2D));}
     bool rainbowHorVertRoutine(bool isVertical);
-    bool rainbowDiagonalRoutine(CRGB *leds, EffectDesc *param);
+    bool rainbowDiagonalRoutine(CRGB *leds, EffectWorker *param);
 
 public:
-    bool run(CRGB *ledarr, EffectDesc *opt=nullptr) override;
+    bool run(CRGB *ledarr, EffectWorker *opt=nullptr) override;
 };
 
 class EffectColors : public EffectCalc {
@@ -531,50 +476,50 @@ private:
     uint8_t ihue;
 
     const String getname() override {return String(FPSTR(T_COLORS));}
-    bool colorsRoutine(CRGB *leds, EffectDesc *param);
+    bool colorsRoutine(CRGB *leds, EffectWorker *param);
 
 public:
     void load() override;
-    bool run(CRGB *ledarr, EffectDesc *opt=nullptr) override;
+    bool run(CRGB *ledarr, EffectWorker *opt=nullptr) override;
 };
 
 class EffectWhiteColorStripe : public EffectCalc {
 private:
 
     const String getname() override {return String(FPSTR(T_WHITE_COLOR));}
-    bool whiteColorStripeRoutine(CRGB *leds, EffectDesc *param);
+    bool whiteColorStripeRoutine(CRGB *leds, EffectWorker *param);
 
 public:
-    bool run(CRGB *ledarr, EffectDesc *opt=nullptr) override;
+    bool run(CRGB *ledarr, EffectWorker *opt=nullptr) override;
 };
 
 class EffectMatrix : public EffectCalc {
 private:
 
     const String getname() override {return String(FPSTR(T_MATRIX));}
-    bool matrixRoutine(CRGB *leds, EffectDesc *param);
+    bool matrixRoutine(CRGB *leds, EffectWorker *param);
 
 public:
-    bool run(CRGB *ledarr, EffectDesc *opt=nullptr) override;
+    bool run(CRGB *ledarr, EffectWorker *opt=nullptr) override;
 };
 
 class EffectSnow : public EffectCalc {
 private:
 
     const String getname() override {return String(FPSTR(T_SNOW));}
-    bool snowRoutine(CRGB *leds, EffectDesc *param);
+    bool snowRoutine(CRGB *leds, EffectWorker *param);
     float snowShift = 0.0; // сдвиг снега
 public:
-    bool run(CRGB *ledarr, EffectDesc *opt=nullptr) override;
+    bool run(CRGB *ledarr, EffectWorker *opt=nullptr) override;
 };
 
 class EffectSparcles : public EffectCalc {
 private:
     const String getname() override {return String(FPSTR(T_SPARKLES));}
-    bool sparklesRoutine(CRGB *leds, EffectDesc *param);
+    bool sparklesRoutine(CRGB *leds, EffectWorker *param);
 
 public:
-    bool run(CRGB *ledarr, EffectDesc *opt=nullptr) override;
+    bool run(CRGB *ledarr, EffectWorker *opt=nullptr) override;
 };
 
 class EffectEverythingFall : public EffectCalc {
@@ -582,11 +527,11 @@ private:
     byte heat[WIDTH][HEIGHT];
     
     const String getname() override {return String(FPSTR(T_EVERYTHINGFALL));}
-    bool fire2012WithPalette(CRGB *leds, EffectDesc *param);
+    bool fire2012WithPalette(CRGB *leds, EffectWorker *param);
 
 public:
     void load() override;
-    bool run(CRGB *ledarr, EffectDesc *opt=nullptr) override;
+    bool run(CRGB *ledarr, EffectWorker *opt=nullptr) override;
 };
 
 class EffectFire2012 : public EffectCalc {
@@ -605,21 +550,21 @@ private:
   uint8_t noise3d[NUM_LAYERS][WIDTH][HEIGHT];
   
   const String getname() override {return String(FPSTR(T_FIRE2012));}
-  bool fire2012Routine(CRGB *leds, EffectDesc *param);
+  bool fire2012Routine(CRGB *leds, EffectWorker *param);
 
 public:
     void load() override;
-    bool run(CRGB *ledarr, EffectDesc *opt=nullptr) override;
+    bool run(CRGB *ledarr, EffectWorker *opt=nullptr) override;
 };
 
 class EffectStarFall : public EffectCalc {
 private:
     const String getname() override {return String(FPSTR(T_SNOWSTORMSTARFALL));}
-    bool snowStormStarfallRoutine(CRGB *leds, EffectDesc *param);
+    bool snowStormStarfallRoutine(CRGB *leds, EffectWorker *param);
 
 public:
     void load() override {FastLED.clear();}
-    bool run(CRGB *ledarr, EffectDesc *opt=nullptr) override;
+    bool run(CRGB *ledarr, EffectWorker *opt=nullptr) override;
 };
 
 class EffectLighters : public EffectCalc {
@@ -630,11 +575,11 @@ private:
     float lightersPos[2U][LIGHTERS_AM];
 
     const String getname() override {return String(FPSTR(T_LIGHTERS));}
-    bool lightersRoutine(CRGB *leds, EffectDesc *param);
+    bool lightersRoutine(CRGB *leds, EffectWorker *param);
 
 public:
     void load() override;
-    bool run(CRGB *ledarr, EffectDesc *opt=nullptr) override;
+    bool run(CRGB *ledarr, EffectWorker *opt=nullptr) override;
 };
 
 class Effect3DNoise : public EffectCalc {
@@ -683,7 +628,7 @@ private:
 
 public:
     void load() override;
-    bool run(CRGB *ledarr, EffectDesc *opt=nullptr) override;
+    bool run(CRGB *ledarr, EffectWorker *opt=nullptr) override;
 };
 
 class EffectSpiro : public EffectCalc {
@@ -707,11 +652,11 @@ private:
   float spirotheta2 = 0;
 
   const String getname() {return String(FPSTR(T_SPIRO));}
-  bool spiroRoutine(CRGB *leds, EffectDesc *param);
+  bool spiroRoutine(CRGB *leds, EffectWorker *param);
 
 public:
     void load() override;
-    bool run(CRGB *ledarr, EffectDesc *opt=nullptr) override;
+    bool run(CRGB *ledarr, EffectWorker *opt=nullptr) override;
 };
 
 class EffectPrismata : public EffectCalc {
@@ -719,11 +664,11 @@ private:
   byte spirohueoffset = 0;
 
   const String getname() {return String(FPSTR(T_PRIZMATA));}
-  bool prismataRoutine(CRGB *leds, EffectDesc *param);
+  bool prismataRoutine(CRGB *leds, EffectWorker *param);
 
 public:
     void load() override;
-    bool run(CRGB *ledarr, EffectDesc *opt=nullptr) override;
+    bool run(CRGB *ledarr, EffectWorker *opt=nullptr) override;
 };
 
 class EffectFlock : public EffectCalc {
@@ -736,11 +681,11 @@ private:
   uint8_t hueoffset;
 
   const String getname() {return String(FPSTR(T_FLOCK));}
-  bool flockRoutine(CRGB *leds, EffectDesc *param);
+  bool flockRoutine(CRGB *leds, EffectWorker *param);
 
 public:
     void load() override;
-    bool run(CRGB *ledarr, EffectDesc *opt=nullptr) override;
+    bool run(CRGB *ledarr, EffectWorker *opt=nullptr) override;
 };
 
 
@@ -778,22 +723,22 @@ private:
     }
     void drawFillRect2_fast(int8_t x1, int8_t y1, int8_t x2, int8_t y2, CRGB color);
     void FillNoise(int8_t layer);
-    bool rainbowCometRoutine(CRGB *leds, EffectDesc *param);
-    bool rainbowComet3Routine(CRGB *leds, EffectDesc *param);
+    bool rainbowCometRoutine(CRGB *leds, EffectWorker *param);
+    bool rainbowComet3Routine(CRGB *leds, EffectWorker *param);
 
 public:
     void load() override;
-    bool run(CRGB *ledarr, EffectDesc *opt=nullptr) override;
+    bool run(CRGB *ledarr, EffectWorker *opt=nullptr) override;
 };
 
 class EffectSwirl : public EffectCalc {
 private:
     const String getname() {return String(FPSTR(T_SWIRL));}
-    bool swirlRoutine(CRGB *leds, EffectDesc *param);
+    bool swirlRoutine(CRGB *leds, EffectWorker *param);
 
 public:
     void load() override;
-    bool run(CRGB *ledarr, EffectDesc *opt=nullptr) override;
+    bool run(CRGB *ledarr, EffectWorker *opt=nullptr) override;
 };
 
 class EffectDrift : public EffectCalc {
@@ -812,12 +757,12 @@ private:
             return EffectCalc::getname();
         }
     }
-  bool incrementalDriftRoutine(CRGB *leds, EffectDesc *param);
-  bool incrementalDriftRoutine2(CRGB *leds, EffectDesc *param);
+  bool incrementalDriftRoutine(CRGB *leds, EffectWorker *param);
+  bool incrementalDriftRoutine2(CRGB *leds, EffectWorker *param);
 
 public:
     void load() override;
-    bool run(CRGB *ledarr, EffectDesc *opt=nullptr) override;
+    bool run(CRGB *ledarr, EffectWorker *opt=nullptr) override;
 };
 
 class EffectTwinkles : public EffectCalc {
@@ -826,11 +771,11 @@ private:
   uint8_t tnum;
   CRGB ledsbuff[NUM_LEDS];
   const String getname() {return String(FPSTR(T_TWINKLES));}
-  bool twinklesRoutine(CRGB *leds, EffectDesc *param);
+  bool twinklesRoutine(CRGB *leds, EffectWorker *param);
 
 public:
     void load() override;
-    bool run(CRGB *ledarr, EffectDesc *opt=nullptr) override;
+    bool run(CRGB *ledarr, EffectWorker *opt=nullptr) override;
 };
 
 class EffectWaves : public EffectCalc {
@@ -841,11 +786,11 @@ private:
   uint8_t whue;
   uint8_t waveTheta;
   const String getname() {return String(FPSTR(T_WAVES));}
-  bool wavesRoutine(CRGB *leds, EffectDesc *param);
+  bool wavesRoutine(CRGB *leds, EffectWorker *param);
 
 public:
     void load() override;
-    bool run(CRGB *ledarr, EffectDesc *opt=nullptr) override;
+    bool run(CRGB *ledarr, EffectWorker *opt=nullptr) override;
 };
 
 class EffectRadar : public EffectCalc {
@@ -853,11 +798,11 @@ private:
   uint8_t eff_offset;        // глобальная переменная для работы эффектов (обычно применяется для циклического пересчета hue, количества кадров и др...)
   uint8_t eff_theta;         // глобальная переменная угла для работы эффектов
   const String getname() {return String(FPSTR(T_RADAR));}
-  bool radarRoutine(CRGB *leds, EffectDesc *param);
+  bool radarRoutine(CRGB *leds, EffectWorker *param);
 
 public:
     void load() override;
-    bool run(CRGB *ledarr, EffectDesc *opt=nullptr) override;
+    bool run(CRGB *ledarr, EffectWorker *opt=nullptr) override;
 };
 
 class EffectMStreamSmoke : public EffectCalc {
@@ -876,10 +821,10 @@ private:
 
   const String getname() {return String(FPSTR(T_SMOKE));}
   void FillNoise(int8_t layer);     // TODO: join with Comet's
-  bool multipleStreamSmokeRoutine(CRGB *leds, EffectDesc *param);
+  bool multipleStreamSmokeRoutine(CRGB *leds, EffectWorker *param);
 
 public:
-    bool run(CRGB *ledarr, EffectDesc *opt=nullptr) override;
+    bool run(CRGB *ledarr, EffectWorker *opt=nullptr) override;
 };
 
 class EffectFire2018 : public EffectCalc {
@@ -896,10 +841,10 @@ private:
   uint8_t noise3dx[NUM_LAYERS2][WIDTH][HEIGHT];
 
   const String getname() {return String(FPSTR(T_FIRE2018));}
-  bool fire2018Routine(CRGB *leds, EffectDesc *param);
+  bool fire2018Routine(CRGB *leds, EffectWorker *param);
 
 public:
-    bool run(CRGB *ledarr, EffectDesc *opt=nullptr) override;
+    bool run(CRGB *ledarr, EffectWorker *opt=nullptr) override;
 };
 
 class EffectRingsLock : public EffectCalc {
@@ -918,11 +863,11 @@ private:
 
   const String getname() {return String(FPSTR(T_RINGS));}
   void ringsSet();
-  bool ringsRoutine(CRGB *leds, EffectDesc *param);
+  bool ringsRoutine(CRGB *leds, EffectWorker *param);
 
 public:
     void load() override;
-    bool run(CRGB *ledarr, EffectDesc *opt=nullptr) override;
+    bool run(CRGB *ledarr, EffectWorker *opt=nullptr) override;
 };
 
 class EffectCube2d : public EffectCalc {
@@ -940,11 +885,11 @@ private:
 
   const String getname() {return String(FPSTR(T_CUBE2));}
   void cubesize();
-  bool cube2dRoutine(CRGB *leds, EffectDesc *param);
+  bool cube2dRoutine(CRGB *leds, EffectWorker *param);
 
 public:
     void load() override;
-    bool run(CRGB *ledarr, EffectDesc *opt=nullptr) override;
+    bool run(CRGB *ledarr, EffectWorker *opt=nullptr) override;
 };
 
 class EffectRain : public EffectCalc {
@@ -971,12 +916,12 @@ private:
         }
     }
   void rain(byte backgroundDepth, byte maxBrightness, byte spawnFreq, byte tailLength, CRGB rainColor, bool splashes, bool clouds, bool storm, bool fixRC = false);
-  bool coloredRainRoutine(CRGB *leds, EffectDesc *param);
-  bool stormyRainRoutine(CRGB *leds, EffectDesc *param);
-  bool simpleRainRoutine(CRGB *leds, EffectDesc *param);
+  bool coloredRainRoutine(CRGB *leds, EffectWorker *param);
+  bool stormyRainRoutine(CRGB *leds, EffectWorker *param);
+  bool simpleRainRoutine(CRGB *leds, EffectWorker *param);
 
 public:
-    bool run(CRGB *ledarr, EffectDesc *opt=nullptr) override;
+    bool run(CRGB *ledarr, EffectWorker *opt=nullptr) override;
 };
 
 typedef enum : uint8_t {RANGE,EDIT,CHECKBOX} CONTROL_TYPE;
@@ -1010,30 +955,24 @@ public:
     const String &getmin() {return min;}
     const String &getmax() {return max;}
     const String &getstep() {return step;}
+
+    void setval(const String &_val) {val=_val;}
 };
 
 class EffectWorker {
 private:
     const uint8_t maxDim = ((WIDTH>HEIGHT)?WIDTH:HEIGHT);
-    typedef union {
-        uint8_t mask;
-        struct {
-            bool init:1;
-            bool copy:1;
-            bool canBeSelected:1;
-            bool isFavorite:1;
-            bool isRval:1;
-        };
-    } EFFFLAGS;
-    EFFFLAGS flags;
 
+    EFFFLAGS flags; // подумать нужен ли он здесь...
     uint16_t curEff = (uint16_t)EFF_NONE;     ///< энумератор текущего эффекта
-    int workIdx = 0;       ///< абсолютный номер эффекта по порядку (исполняемый)
-    int selectIdx = 0;     ///< абсолютный номер эффекта по порядку (выбраный)
-    LList<EffectDesc*> effects; // TODO: удалить
-    LList<UIControl*> controls;
+    uint16_t selEff = (uint16_t)EFF_NONE;     ///< энумератор выбранного эффекта (для отложенного перехода)
+
     String effectName; // имя эффекта (предварительно заданное или из конфига)
     String version; // версия эффекта
+
+    LList<EffectListElem*> effects; // список эффектов с флагами из индекса
+    LList<UIControl*> controls; // список контроллов текущего эффекта
+    LList<UIControl*> selcontrols; // список контроллов выбранного эффекта (пока еще идет фейдер)
 
     /**
      * создает и инициализирует экземпляр класса выбранного эффекта
@@ -1044,595 +983,101 @@ private:
     EffectWorker(const EffectWorker&);  // noncopyable
     EffectWorker& operator=(const EffectWorker&);  // noncopyable
 
-    void clear() {
-        while (effects.size()) {
-            EffectDesc *eff = effects.shift();
-            if (eff->flags.copy) delete eff;
-        }
-    }
+    void clearEffectList(); // очистка списка эффектов, вызываетсяч в initDefault
+    void clearControlsList(); // очистка списка контроллов и освобождение памяти
+    
+    //void initDefault();
 
-    void initDefault() {
-        clear();
-        globEffIdx = 0;
-        effects.add(new EffectDesc(EFF_NONE, nullptr, 0));
-        effects.add(new EffectDesc(EFF_WHITE_COLOR, T_WHITE_COLOR, EFF_ENABLED));
-        effects.add(new EffectDesc(EFF_COLORS, T_COLORS, EFF_ENABLED));
-        effects.add(new EffectDesc(EFF_RAINBOW_2D, T_RAINBOW_2D, EFF_ENABLED_R));
-        effects.add(new EffectDesc(EFF_SPARKLES, T_SPARKLES, EFF_ENABLED));
-        effects.add(new EffectDesc(EFF_SNOW, T_SNOW, EFF_ENABLED));
-        effects.add(new EffectDesc(EFF_SNOWSTORMSTARFALL, T_SNOWSTORMSTARFALL, EFF_ENABLED));
-        effects.add(new EffectDesc(EFF_MATRIX, T_MATRIX, EFF_ENABLED));
-        effects.add(new EffectDesc(EFF_LIGHTERS, T_LIGHTERS, EFF_ENABLED));
-        effects.add(new EffectDesc(EFF_LIGHTER_TRACES, T_LIGHTER_TRACES, EFF_ENABLED));
-        effects.add(new EffectDesc(EFF_CUBE, T_CUBE, EFF_ENABLED));
-        effects.add(new EffectDesc(EFF_PULSE, T_PULSE, EFF_ENABLED));
-        effects.add(new EffectDesc(EFF_EVERYTHINGFALL, T_EVERYTHINGFALL, EFF_ENABLED));
-        effects.add(new EffectDesc(EFF_FIRE, T_FIRE, EFF_ENABLED));
-        effects.add(new EffectDesc(EFF_PAINTBALL, T_PAINTBALL, EFF_ENABLED));
-        effects.add(new EffectDesc(EFF_MADNESS, T_MADNESS, EFF_ENABLED));
-        effects.add(new EffectDesc(EFF_CLOUDS, T_CLOUDS, EFF_ENABLED));
-        effects.add(new EffectDesc(EFF_LAVA, T_LAVA, EFF_ENABLED));
-        effects.add(new EffectDesc(EFF_PLASMA, T_PLASMA, EFF_ENABLED));
-        effects.add(new EffectDesc(EFF_RAINBOW, T_RAINBOW, EFF_ENABLED));
-        effects.add(new EffectDesc(EFF_RAINBOW_STRIPE, T_RAINBOW_STRIPE, EFF_ENABLED));
-        effects.add(new EffectDesc(EFF_ZEBRA, T_ZEBRA, EFF_ENABLED));
-        effects.add(new EffectDesc(EFF_FOREST, T_FOREST, EFF_ENABLED));
-        effects.add(new EffectDesc(EFF_OCEAN, T_OCEAN, EFF_ENABLED));
-        effects.add(new EffectDesc(EFF_BBALS, T_BBALS, EFF_ENABLED));
-        effects.add(new EffectDesc(EFF_SINUSOID3, T_SINUSOID3, EFF_ENABLED));
-        effects.add(new EffectDesc(EFF_METABALLS, T_METABALLS, EFF_ENABLED));
-        effects.add(new EffectDesc(EFF_SPIRO, T_SPIRO, EFF_ENABLED));
-        effects.add(new EffectDesc(EFF_RAINBOWCOMET, T_RAINBOWCOMET, EFF_ENABLED));
-        effects.add(new EffectDesc(EFF_RAINBOWCOMET3, T_RAINBOWCOMET3, EFF_ENABLED));
-        effects.add(new EffectDesc(EFF_PRIZMATA, T_PRIZMATA, EFF_ENABLED));
-        effects.add(new EffectDesc(EFF_FLOCK, T_FLOCK, EFF_ENABLED));
-        effects.add(new EffectDesc(EFF_SWIRL, T_SWIRL, EFF_ENABLED));
-        effects.add(new EffectDesc(EFF_DRIFT, T_DRIFT, EFF_ENABLED));
-        effects.add(new EffectDesc(EFF_DRIFT2, T_DRIFT2, EFF_ENABLED));
-        effects.add(new EffectDesc(EFF_TWINKLES, T_TWINKLES, EFF_ENABLED_R));
-        effects.add(new EffectDesc(EFF_RADAR, T_RADAR, EFF_ENABLED_R));
-        effects.add(new EffectDesc(EFF_WAVES, T_WAVES, EFF_ENABLED));
-        effects.add(new EffectDesc(EFF_FIRE2012, T_FIRE2012, EFF_ENABLED));
-        effects.add(new EffectDesc(EFF_RAIN, T_RAIN, EFF_ENABLED));
-        effects.add(new EffectDesc(EFF_COLORRAIN, T_COLORRAIN, EFF_ENABLED));
-        effects.add(new EffectDesc(EFF_STORMYRAIN, T_STORMYRAIN, EFF_ENABLED));
-        effects.add(new EffectDesc(EFF_FIRE2018, T_FIRE2018, EFF_ENABLED));
-        effects.add(new EffectDesc(EFF_RINGS, T_RINGS, EFF_ENABLED));
-        effects.add(new EffectDesc(EFF_CUBE2, T_CUBE2, EFF_ENABLED));
-        effects.add(new EffectDesc(EFF_SMOKE, T_SMOKE, EFF_ENABLED_R));
-        effects.add(new EffectDesc(EFF_TIME, T_TIME, EFF_ENABLED));
-#ifdef MIC_EFFECTS
-        effects.add(new EffectDesc(EFF_FREQ, T_FREQ, EFF_ENABLED));
-#endif
-    }
-
-public:
-    EffectWorker(): effects() {
-        initDefault();
-        workerset(EFF_NONE);
-    }
-
-    ~EffectWorker() {}
-
-    std::unique_ptr<EffectCalc> worker;           ///< указатель-класс обработчик текущего эффекта
-
-    int loadeffconfig(const uint16_t nb, const char *folder=nullptr){
-        uint16_t swapnb = nb>>8|nb<<8; // меняю местами 2 байта, так чтобы версия оказалась в имени файла позади
-
-        if (LittleFS.begin()) {
-            File configFile;
-            char filename[255];
-            if (folder == nullptr) {
-                sprintf_P(filename,PSTR("/eff/%04x.json"), swapnb);
-            } else {
-                sprintf_P(filename, PSTR("/%s/%04x.json"), folder, swapnb);
-            }
-
-            DynamicJsonDocument doc(2048);
-
-            READALLAGAIN:
-
-            configFile = LittleFS.open(filename, "r"); // PSTR("r") использовать нельзя, будет исключение!
-            String cfg_str = configFile.readString();
-            configFile.close();
-
-            if (cfg_str == F("")){
-                LOG(println, F("Failed to open effects config file"));
-                savedefaulteffconfig(nb, filename); // сохраняем дефолтный и пробуем снова
-                configFile = LittleFS.open(filename, "r"); // PSTR("r") использовать нельзя, будет исключение!
-                cfg_str = configFile.readString();
-                configFile.close();
-            }
-
-            DeserializationError error = deserializeJson(doc, cfg_str);
-            if (error) {
-                LOG(print, F("deserializeJson error: "));
-                LOG(println, error.code());
-                savedefaulteffconfig(nb, filename);
-                configFile = LittleFS.open(filename, "r"); // PSTR("r") использовать нельзя, будет исключение!
-                cfg_str = configFile.readString();
-                configFile.close();
-                DeserializationError error = deserializeJson(doc, cfg_str);
-                if (error) {
-                    LOG(print, F("deserializeJson error, default corrupted: "));
-                    LOG(println, error.code());
-                    return 1; // ошибка
-                }
-            }
-
-            version = doc[F("ver")].as<String>();
-            if(worker->getversion()!=version){
-                doc.clear();
-                LOG(printf_P, PSTR("Wrong version of effect, rewrite with default (%s vs %s)\n"), version.c_str(), worker->getversion().c_str());
-                savedefaulteffconfig(nb, filename);
-                goto READALLAGAIN;
-            }
-
-            curEff = doc[F("nb")].as<uint16_t>();
-            flags.mask = doc.containsKey(F("flags")) ? doc[F("flags")].as<uint8_t>() : 255;
-            effectName = doc.containsKey(F("name")) && doc[F("name")].as<String>()!="" ? doc[F("name")].as<String>() : worker->getname();
-            
-            LOG(printf_P, PSTR("Load MEM: %s - CFG: %s - DEF: %s\n"), effectName.c_str(), doc[F("name")].as<String>().c_str(), worker->getname().c_str());
-
-            // вычитываею список контроллов
-            // повторные - скипаем, нехватающие - создаем
-            // обязательные контролы 0, 1, 2 - яркость, скорость, масштаб, остальные пользовательские
-            JsonArray arr = doc[F("ctrls")].as<JsonArray>();
-            controls.clear();
-            uint8_t id_tst = 0x0; // пустой
-            for (size_t i = 0; i < arr.size(); i++) {
-                JsonObject item = arr[i];
-                uint8_t id = item[F("id")].as<uint8_t>();
-                if(!(id_tst&(1<<id))){ // проверка на существование контрола
-                    id_tst |= 1<<item[F("id")].as<uint8_t>(); // закладываемся не более чем на 8 контролов, этого хватит более чем :)
-                    String name = item.containsKey(F("name")) ?
-                        item[F("name")].as<String>() 
-                        : id == 0 ? String(F("Яркость"))
-                        : id == 1 ? String(F("Скорость"))
-                        : id == 2 ? String(F("Масштаб"))
-                        : String(F("Доп."))+String(id);
-                    String val = item.containsKey(F("val")) ?
-                        item[F("val")].as<String>()
-                        : id < 3 ? String(127)
-                        : String();
-                    String min = item.containsKey(F("min")) ?
-                        item[F("min")].as<String>()
-                        : id < 3 ? String(1)
-                        : String();
-                    String max = item.containsKey(F("max")) ?
-                        item[F("max")].as<String>()
-                        : id < 3 ? String(255)
-                        : String();
-                    String step = item.containsKey(F("step")) ?
-                        item[F("step")].as<String>()
-                        : id < 3 ? String(1)
-                        : String();
-                    controls.add(new UIControl(
-                        id,             // id
-                        ((id<3) ? CONTROL_TYPE::RANGE : item[F("type")].as<CONTROL_TYPE>()),     // type
-                        name,           // name
-                        val,            // value
-                        min,            // min
-                        max,            // max
-                        step            // step
-                    ));
-                }
-            }
-            doc.clear();
-            // тест стандартных контроллов
-            for(int8_t id=0;id<3;id++){
-                if(!((id_tst>>id)&1)){ // не найден контрол, нужно создать
-                    controls.add(new UIControl(
-                        id,                                     // id
-                        CONTROL_TYPE::RANGE,                    // type
-                        id==0 ? F("Яркость") : id==1 ? F("Скорость") : F("Масштаб"),           // name
-                        String(127),                            // value
-                        String(1),                              // min
-                        String(255),                            // max
-                        String(1)                               // step
-                    ));
-                }
-            }
-            controls.sort([](UIControl *&a, UIControl *&b){ return a->getId() - b->getId();}); // сортирую по id
-        }
-        return 0; // успешно
-    }
-
+    int loadeffconfig(const uint16_t nb, const char *folder=nullptr);
+    void loadeffname(const uint16_t nb, const char *folder=nullptr);
     // получение пути и имени файла конфига эффекта
-    const String geteffectpathname(const uint16_t nb, const char *folder=nullptr){
-        uint16_t swapnb = nb>>8|nb<<8; // меняю местами 2 байта, так чтобы копии/верисии эффекта оказалась в имени файла позади
-        String filename;
-        char buffer[5]; 
-        if (folder != nullptr) {
-            filename.concat(F("/"));
-            filename.concat(folder);
-        }
-        filename.concat(F("/eff/"));
-        sprintf_P(buffer,PSTR("%04x"), swapnb);
-        filename.concat(buffer);
-        filename.concat(F(".json"));
-        return filename;
-    }
+    const String geteffectpathname(const uint16_t nb, const char *folder=nullptr);
+    void savedefaulteffconfig(uint16_t nb, String &filename);
+    void saveeffconfig(uint16_t nb, char *folder=nullptr);
+    void makeIndexFile(const char *folder = nullptr);
+    // создать или обновить текущий индекс эффекта
+    void updateIndexFile();
+    // удалить эффект из индексного файла
+    void deleteFromIndexFile(const uint16_t effect);
+public:
+    std::unique_ptr<EffectCalc> worker = nullptr;           ///< указатель-класс обработчик текущего эффекта
+    void initDefault(); // пусть вызывается позже и явно
+    ~EffectWorker() { clearEffectList(); clearControlsList(); }
 
-    void makeIndexFile(const char *folder = nullptr){
-        if (LittleFS.begin()) {
-            File configFile;
-            String buffer;
-            String filename;
-            if (folder != nullptr) {
-                filename.concat(F("/"));
-                filename.concat(folder);
-            }
-            filename.concat(F("/eff_index.json"));
+    // дефолтный конструктор
+    EffectWorker() : effects(), controls() { workerset(EFF_NONE); } // initDefault(); убрал из конструктора, т.к. крайне неудобно становится отлаживать...
 
-            if(LittleFS.exists(filename)){ // если индексный файл существует, то на выход
-                return;
-            }
-            
-            // DynamicJsonDocument doc(4096); // для списка нужно больше 2кб... будем формировать наверное ручками :)
-            // JsonArray arr = doc.to<JsonArray>();
-            bool firstLine = true;
-            bool nameFromConfig = false;
-            buffer.concat(F("["));
-            for (uint8_t i = ((uint8_t)EFF_ENUM::EFF_NONE+1); i < (uint8_t)EFF_ENUM::EFF_NONE_LAST; i++){ // EFF_NONE & EFF_NONE_LAST не сохраняем
-                workerset(i,false); // пропускаем сохранение конфигов
-                if(worker->getname()!=String(F("@name@"))){
-                    String cfgfilename = geteffectpathname(i, folder);
-                    if(!LittleFS.exists(cfgfilename)){ // если конфига эффекта не существует, создаем дефолтный
-                        savedefaulteffconfig(i, cfgfilename.c_str());
-                        delay(50); // задержка на запись в ФС, без нее может не корректно записывать
-                        nameFromConfig = false;
-                    } else { // конфиг существует, тогда читаем его
-                        loadeffconfig(i, folder);
-                        nameFromConfig = true;
-                    }
+    // конструктор копий эффектов
+    EffectWorker(const EffectListElem* base, const EffectListElem* copy);
+    // Конструктор для отложенного эффекта
+    EffectWorker(uint16_t delayeffnb);
+    // конструктор текущего эффекта, для fast=true вычитываетсяч только имя
+    EffectWorker(const EffectListElem* eff, bool fast=true);
 
-                    // JsonObject var = arr.createNestedObject();
-                    // var[F("nb")] = i;
-                    // var[F("nm")] = nameFromConfig ? effectName.c_str() : worker->getname();
-
-                    if(!firstLine) buffer.concat(F(",")); // собираем JSON, чтобы записать его за один раз
-                    buffer.concat(F("{\"nb\":"));
-                    buffer.concat(i);
-                    buffer.concat(F(",\"nm\":\""));
-                    buffer.concat(nameFromConfig ? effectName.c_str() : worker->getname().c_str());
-                    buffer.concat(F("\"}"));
-
-                    firstLine = false; // сбрасываю признак перовой строки
-                }
-            }
-            buffer.concat(F("]"));
-            configFile = LittleFS.open(filename, "w"); // PSTR("w") использовать нельзя, будет исключение!
-            configFile.print(buffer);
-            // String cfg_str;
-            // serializeJson(doc, cfg_str);
-            // //LOG(println,cfg_str);
-            // configFile.print(cfg_str);
-            // doc.clear();
-            configFile.flush();
-            configFile.close();
-            // LOG(println,"");
-        }
-    }
-
-    void savedefaulteffconfig(uint16_t nb, const char *filename){
-        // если конфиг не найден, то создаем дефолтный
-        // при этом предполагаем, что worker указывает на нужный эффект!!!
-        LOG(printf_P,PSTR("Create default config: %d %s\n"), nb, worker->getname().c_str());
-
-        if (LittleFS.begin()) {
-            File configFile;
-            String  cfg = worker->defaultuiconfig();
-            // workerset(nb,false); // пропускаем сохранение конфигов
-            // LOG(println,worker->getname());
-            cfg.replace(F("@name@"),worker->getname());
-            cfg.replace(F("@ver@"),worker->getversion());
-            cfg.replace(F("@nb@"), String(nb));
-            configFile = LittleFS.open(filename, "w"); // PSTR("w") использовать нельзя, будет исключение!
-            configFile.print(cfg);
-            configFile.flush();
-            configFile.close();
-        }
-    }
-
-    void saveeffconfig(uint16_t nb, char *folder=nullptr){
-        // а тут уже будем писать рабочий конфиг исходя из того, что есть в памяти
-        uint16_t swapnb = nb>>8|nb<<8; // меняю местами 2 байта, так чтобы версия оказалась в имени файла позади
-        if (LittleFS.begin()) {
-            File configFile;
-            char filename[255];
-            if (folder == nullptr) {
-                sprintf_P(filename,PSTR("/eff/%04x.json"), swapnb);
-                configFile = LittleFS.open(filename, "w"); // PSTR("w") использовать нельзя, будет исключение!
-            } else {
-                sprintf_P(filename, PSTR("/%s/%04x.json"), folder, swapnb);
-                configFile = LittleFS.open(filename, "w"); // PSTR("w") использовать нельзя, будет исключение!
-            }
-
-            DynamicJsonDocument doc(2048);
-            doc[F("nb")] = nb;
-            doc[F("flags")] = flags.mask;
-            doc[F("name")] = effectName;
-            doc[F("ver")] = version;
-            JsonArray arr = doc.createNestedArray(F("ctrls"));
-            for (int i = 0; i < controls.size(); i++)
-            {
-                JsonObject var = arr.createNestedObject();
-                var[F("id")]=controls[i]->getId();
-                var[F("type")]=controls[i]->gettype();
-                var[F("name")]=controls[i]->getname();
-                var[F("val")]=controls[i]->getval();
-                var[F("min")]=controls[i]->getmin();
-                var[F("max")]=controls[i]->getmax();
-                var[F("step")]=controls[i]->getstep();
-            }
-            String cfg_str;
-            serializeJson(doc, cfg_str);
-            //LOG(println,cfg_str);
-            configFile.print(cfg_str);
-            doc.clear();
-            configFile.flush();
-            configFile.close();
-        }    
-    }
-
-    void loadConfig(const char *cfg = nullptr) {
-        if (LittleFS.begin()) {
-            File configFile;
-            if (cfg == nullptr) {
-                LOG(println, F("Load default effects config file"));
-                configFile = LittleFS.open(F("/eff_config.json"), "r"); // PSTR("r") использовать нельзя, будет исключение!
-            } else {
-                LOG(printf_P, PSTR("Load %s effects config file\n"), cfg);
-                configFile = LittleFS.open(cfg, "r"); // PSTR("r") использовать нельзя, будет исключение!
-            }
-            String cfg_str = configFile.readString();
-            configFile.close();
-
-            if (cfg_str == F("")){
-                LOG(println, F("Failed to open effects config file"));
-                saveConfig();
-                return;
-            }
-
-            LOG(println, F("\nStart desialization of effects\n\n"));
-
-            DynamicJsonDocument doc(8192);
-            DeserializationError error = deserializeJson(doc, cfg_str);
-            if (error) {
-                LOG(print, F("deserializeJson error: "));
-                LOG(println, error.code());
-                return;
-            }
-
-            JsonArray arr = doc.as<JsonArray>();
-            EffectDesc *eff;
-            for (size_t i = 0; i < arr.size(); i++) {
-                JsonObject item = arr[i];
-
-                EFF_ENUM nb = (EFF_ENUM)(item[F("nb")].as<byte>());
-                effflags flg; flg.mask = item[F("flg")].as<byte>();
-                EffectDesc *tmp = getEffect(nb);
-                if (tmp->eff_nb == EFF_NONE) continue;
-                if (flg.copy) {
-                    eff = new EffectDesc(tmp);
-                    effects.add(eff);
-                } else {
-                    eff = tmp;
-                    if (flg.mask) eff->flags.mask = flg.mask;
-                }
-
-                eff->brightness = item[F("br")].as<byte>();
-                eff->speed = item[F("sp")].as<byte>();
-                eff->scale = item[F("sc")].as<byte>();
-                eff->rval = item[F("rv")].as<byte>();
-
-                LOG(printf_P, PSTR("(%d-%d-%d-%d-%d-%d-%d)\n"), nb, eff->brightness, eff->speed, eff->scale, eff->flags.isFavorite, eff->flags.canBeSelected, eff->flags.copy);
-            }
-            doc.clear();
-        }
-    }
-
-    void saveConfig(const char *cfg = nullptr) {
-        if (LittleFS.begin()) {
-            File configFile;
-            if (cfg == nullptr) {
-                LOG(println, F("Save default effects config file"));
-                configFile = LittleFS.open(F("/eff_config.json"), "w"); // PSTR("w") использовать нельзя, будет исключение!
-            } else {
-                LOG(printf_P, PSTR("Save %s effects config file\n"), cfg);
-                configFile = LittleFS.open(cfg, "w"); // PSTR("w") использовать нельзя, будет исключение!
-            }
-
-            EffectDesc *cur_eff;
-
-            configFile.print("[");
-            for (int i = 1; i < effects.size(); i++){ // EFF_NONE не сохраняем
-                cur_eff = effects[i];
-                configFile.printf_P(PSTR("%s{\"nb\":%d,\"br\":%d,\"sp\":%d,\"sc\":%d,\"rv\":%d,\"flg\":%d}"),
-                    (char*)(i>1?F(","):F("")), cur_eff->eff_nb, cur_eff->brightness, cur_eff->speed, cur_eff->scale, cur_eff->rval, (int)cur_eff->flags.mask);
-                LOG(printf_P, PSTR("%s{\"nb\":%d,\"br\":%d,\"sp\":%d,\"sc\":%d,\"rv\":%d,\"flg\":%d}"),
-                    (char*)(i>1?F(","):F("")), cur_eff->eff_nb, cur_eff->brightness, cur_eff->speed, cur_eff->scale, cur_eff->rval, (int)cur_eff->flags.mask);
-            }
-            configFile.print("]");
-            configFile.flush();
-            configFile.close();
-            LOG(println,"");
-        }
-    }
-
-    bool autoSaveConfig() {
-        static unsigned long i;
-        if(i + (30 * 1000) > millis()){  // если не пришло время - выходим из функции и сбрасываем счетчик (ожидаем бездействия в 30 секунд относительно последней записи)
-            i = millis();
-            return false;
-        }
-        saveConfig();
-        i = millis();
-        return true; // сохранились
-    }
+    // отложенная запись конфига текущего эффекта
+    bool autoSaveConfig();
 
     byte getModeAmount() {return effects.size();}
 
-    void setBrightness(byte val) {effects[workIdx]->brightness = val; if (worker) worker->setbrt(val);}
-    void setSpeed(byte val) {effects[workIdx]->speed = val; if (worker) worker->setspd(val);}
-    void setScale(byte val) {effects[workIdx]->scale = val; if (worker) worker->setscl(val);}
-    void setRval(byte val) {effects[workIdx]->rval = val; if (worker) worker->setrval(val);}
-    byte getBrightness() { return effects[workIdx]->brightness; }
-    byte getSpeed() { return effects[workIdx]->speed; }
-    byte getScale() { return effects[workIdx]->scale; }
-    byte getRval() { return effects[workIdx]->rval; }
-    byte isRval() { return effects[workIdx]->isRval(); }
-    const char *getName() {return effects[workIdx]->eff_name;}
-    const EFF_ENUM getEn() {return effects[workIdx]->eff_nb;}
+    void setBrightness(byte val) {controls[0]->setval(String(val)); if (worker) worker->setbrt(val);}
+    void setSpeed(byte val) {controls[1]->setval(String(val)); if (worker) worker->setspd(val);}
+    void setScale(byte val) {controls[2]->setval(String(val)); if (worker) worker->setscl(val);}
+    void setRval(byte val) {controls[3]->setval(String(val)); if (worker) worker->setrval(val);}
+    byte getBrightness() { return controls.size()>=1 ? controls[0]->getval().toInt() : 0; }
+    byte getSpeed() { return controls.size()>=2 ? controls[1]->getval().toInt() : 0; }
+    byte getScale() { return controls.size()>=3 ? controls[2]->getval().toInt() : 0; }
+    byte getRval() { return controls.size()>=4 ? controls[3]->getval().toInt() : 0; } // фигня конечно, пока все это как затычки...
+    byte isRval() { return controls.size()>=4; } // фигня конечно, пока все это как затычки...
 
-    void setBrightnessS(byte val) {effects[selectIdx]->brightness = val; if (worker && isSelected()) worker->setbrt(val);}
-    void setSpeedS(byte val) {effects[selectIdx]->speed = val; if (worker && isSelected()) worker->setspd(val);}
-    void setScaleS(byte val) {effects[selectIdx]->scale = val; if (worker && isSelected()) worker->setscl(val);}
-    void setRvalS(byte val) {effects[selectIdx]->rval = val; if (worker && isSelected()) worker->setrval(val);}
-    byte getBrightnessS() { return effects[selectIdx]->brightness; }
-    byte getSpeedS() { return effects[selectIdx]->speed; }
-    byte getScaleS() { return effects[selectIdx]->scale; }
-    byte getRvalS() { return effects[selectIdx]->rval; }
-    const char *getNameS() {return effects[selectIdx]->eff_name;}
-    const EFF_ENUM getEnS() {return effects[selectIdx]->eff_nb;}
+    const char *getName() {return effectName.c_str();}
+    // текущий эффект или его копия
+    const uint16_t getEn() {return curEff;}
 
-    int getNext() { // следующий эффект, кроме canBeSelected==false
-        int i;
-        for (i = selectIdx + 1; i < effects.size(); i++) {
-            if (effects[i]->canBeSelected()) return i;
-        }
-        for (i = 1; i < effects.size(); i++) {
-            if (effects[i]->canBeSelected()) return i;
-        }
-        return 0;
-    }
+    void setBrightnessS(byte val) {selcontrols[0]->setval(String(val)); if (worker && isSelected()) worker->setbrt(val);}
+    void setSpeedS(byte val) {selcontrols[1]->setval(String(val)); if (worker && isSelected()) worker->setspd(val);}
+    void setScaleS(byte val) {selcontrols[2]->setval(String(val)); if (worker && isSelected()) worker->setscl(val);}
+    void setRvalS(byte val) {selcontrols[3]->setval(String(val)); if (worker && isSelected()) worker->setrval(val);}
+    byte getBrightnessS() { return selcontrols.size()>=1 ? selcontrols[0]->getval().toInt() : 0; }
+    byte getSpeedS() { return selcontrols.size()>=2 ? selcontrols[1]->getval().toInt() : 0; }
+    byte getScaleS() { return selcontrols.size()>=3 ? selcontrols[2]->getval().toInt() : 0; }
+    byte getRvalS() { return selcontrols.size()>=4 ? selcontrols[3]->getval().toInt() : 0; } // фигня конечно, пока все это как затычки...
+    byte isRvalS() { return selcontrols.size()>=4; } // фигня конечно, пока все это как затычки...
+    const uint16_t getEnS() {return selEff;}
 
-    void moveNext() { // следующий эффект, кроме canBeSelected==false
-        workIdx = selectIdx = getNext();
-        workerset(effects[workIdx]->eff_nb);
-        curEff = effects[workIdx]->eff_nb;
-    }
-
-    int getPrev() { // предыдущий эффект, кроме canBeSelected==false
-        int i;
-        for (i = selectIdx - 1; i > 0; i--) {
-            if (effects[i]->canBeSelected()) return i;
-        }
-        for (i = effects.size() - 1; i >= 0; i--){
-            if (effects[i]->canBeSelected()) return i;
-        }
-        return 0;
-    }
-
-    void movePrev() { // предыдущий эффект, кроме canBeSelected==false
-        workIdx = selectIdx = getPrev();
-        workerset(effects[workIdx]->eff_nb);
-        curEff = effects[workIdx]->eff_nb;
-    }
-
-    int getBy(EFF_ENUM select){ // перейти по перечислению
-        for (int i = 1; i < effects.size(); i++) {
-            if (effects[i]->eff_nb == select) return i;
-        }
-        return 0;
-    }
-
-    void moveBy(EFF_ENUM select){ // перейти по перечислению
-        workIdx = selectIdx = getBy(select);
-        workerset(effects[workIdx]->eff_nb);
-        curEff = effects[workIdx]->eff_nb;
-    }
-
-    int getByIdx(int idx){ // перейти по перечислению
-        return (idx < effects.size())? idx : 0;
-    }
-
-    void moveByIdx(int idx){ // перейти по перечислению
-        workIdx = selectIdx = getByIdx(idx);
-        workerset(effects[workIdx]->eff_nb);
-        curEff = effects[workIdx]->eff_nb;
-    }
-
-    void moveSelected(){ // перейти по предворительно выбранному
-        workIdx = selectIdx;
-        workerset(effects[workIdx]->eff_nb);
-        curEff = effects[workIdx]->eff_nb;
-    }
-
-    int getBy(byte cnt){ // перейти на количество шагов, к ближайшему большему (для DEMO)
-        int i = (selectIdx + cnt) % effects.size(); // смещаемся на нужное число шагов, но не больше лимита эффектов
-        int tmp = i; // запомним позицию
-
-        while (!effects[i]->isFavorite()) { // если не избранный, то будем перебирать по +1
-            if (++i == effects.size()) i = 0;
-            if (i == tmp) break; // круг прошли, но не нашли, на выход
-        }
-        return i;
-    }
-
-    void moveBy(byte cnt){ // перейти на количество шагов, к ближайшему большему (для DEMO)
-        workIdx = selectIdx = getBy(cnt);
-        workerset(effects[workIdx]->eff_nb);
-        curEff = effects[workIdx]->eff_nb;
-    }
-
-    EffectDesc *getEffectByIdx(int idx){
-        if (idx < effects.size()) {
-            return effects[idx];
-        }
-        return effects[0]; // NONE
-    }
-
-    EffectDesc *getNextEffect(EffectDesc *current){
-        return getEffectByIdx(current->idx + 1);
-    }
-
-    EffectDesc *getEffect(EFF_ENUM select){
-        for (int i = 0; i < effects.size(); i++) {
-            if (effects[i]->eff_nb == select) {
-                return effects[i];
-            }
-        }
-        return effects[0]; // NONE
-    }
-
-    EffectDesc *getCurrent(){ // вернуть текущий
-        return effects[workIdx];
-    }
-
-    EffectDesc *getSelected(){ // вернуть текущий
-        return effects[selectIdx];
-    }
-
-    void setSelected(int idx){
-        selectIdx = idx;
-    }
-
-    bool isSelected(){
-        return (selectIdx == workIdx);
-    }
-
-    void copyEffect(int idx){
-        if (idx >= effects.size()) return;
-        EffectDesc *curr = effects[idx];
-        EffectDesc *copy = new EffectDesc(curr);
-        effects.add(copy);
-    }
-
-    void deleteEffect(int idx){
-        if (idx >= effects.size()) return;
-        if (idx == workIdx || idx == selectIdx) {
-            movePrev();
-        }
-        EffectDesc *curr = effects[idx];
-        delete curr;
-        effects.remove(idx);
-
-        for (globEffIdx = 0; globEffIdx < effects.size(); globEffIdx++) {
-            effects[globEffIdx]->idx = globEffIdx;
-        }
-    }
+    // следующий эффект, кроме canBeSelected==false
+    uint16_t getNext();
+    // предыдущий эффект, кроме canBeSelected==false
+    uint16_t getPrev();
+    // получить указанный
+    uint16_t getBy(uint16_t select){ return select;}
+    // перейти по предворительно выбранному
+    void moveSelected();
+    // перейти на количество шагов, к ближайшему большему (для DEMO)
+    void moveByCnt(byte cnt){ uint16_t eff = getByCnt(cnt); moveBy(eff); }
+    // получить номер эффекта смещенного на количество шагов (для DEMO)
+    uint16_t getByCnt(byte cnt);
+    // перейти на указанный
+    void moveBy(uint16_t select);
+    // вернуть первый элемент списка
+    EffectListElem *getFirstEffect();
+    // вернуть следующий эффект
+    EffectListElem *getNextEffect(EffectListElem *current);
+    // вернуть выбранный элемент списка
+    EffectListElem *getEffect(uint16_t select);
+    // вернуть текущий
+    uint16_t getCurrent() {return curEff;}
+    // вернуть текущий элемент списка
+    EffectListElem *getCurrentListElement();
+    // вернуть выбранный
+    uint16_t getSelected() {return selEff;}
+    // вернуть выбранный элемент списка
+    EffectListElem *getSelectedListElement();
+    void setSelected(const uint16_t effnb);
+    bool isSelected(){ return (curEff == selEff); }
+    // копирование эффекта
+    void copyEffect(const EffectListElem *base);
+    // удалить эффект
+    void deleteEffect(const EffectListElem *eff);
 };
 
 typedef enum _PERIODICTIME {
@@ -1644,7 +1089,5 @@ typedef enum _PERIODICTIME {
   PT_EVERY_5,
   PT_EVERY_1,
 } PERIODICTIME;
-
-
 
 #endif

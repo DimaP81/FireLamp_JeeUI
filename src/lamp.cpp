@@ -257,7 +257,7 @@ void LAMP::effectsTick(){
 
   if(!isEffectsDisabledUntilText){
     // посчитать текущий эффект (сохранить кадр в буфер, если ОК)
-    if(effects.worker->run(getUnsafeLedsArray(), effects.getCurrent())) {
+    if(effects.worker->run(getUnsafeLedsArray(), &effects)) {
 #ifdef USELEDBUF
       ledsbuff.resize(NUM_LEDS);
       std::copy(leds, leds + NUM_LEDS, ledsbuff.begin());
@@ -512,7 +512,7 @@ void LAMP::stopAlarm(){
  */
 void LAMP::startDemoMode(byte tmout)
 {
-  storedEffect = ((effects.getEn() == EFF_WHITE_COLOR) ? storedEffect : effects.getEn()); // сохраняем предыдущий эффект, если только это не белая лампа
+  storedEffect = ((static_cast<EFF_ENUM>(effects.getEn()%256) == EFF_ENUM::EFF_WHITE_COLOR) ? storedEffect : effects.getEn()); // сохраняем предыдущий эффект, если только это не белая лампа
   mode = LAMPMODE::MODE_DEMO;
   randomSeed(millis());
   remote_action(RA::RA_DEMO_NEXT, NULL);
@@ -524,10 +524,10 @@ void LAMP::startNormalMode()
 {
   mode = LAMPMODE::MODE_NORMAL;
   demoTimer(T_DISABLE);
-  if (storedEffect != EFF_NONE) {    // ничего не должно происходить, включаемся на текущем :), текущий всегда определен...
+  if (static_cast<EFF_ENUM>(storedEffect) != EFF_NONE) {    // ничего не должно происходить, включаемся на текущем :), текущий всегда определен...
     remote_action(RA::RA_EFFECT, String(storedEffect).c_str(), NULL);
   } else
-  if(effects.getEn() == EFF_NONE) { // если по каким-то причинам текущий пустой, то выбираем рандомный
+  if(static_cast<EFF_ENUM>(effects.getEn()%256) == EFF_NONE) { // если по каким-то причинам текущий пустой, то выбираем рандомный
     remote_action(RA::RA_EFF_RAND, NULL);
   }
 }
@@ -975,12 +975,8 @@ void LAMP::fader(const uint8_t _tgtbrt, std::function<void(void)> callback){
  * @param EFFSWITCH action - вид переключения (пред, след, случ.)
  * @param fade - переключаться через фейдер или сразу
  */
-void LAMP::switcheffect(EFFSWITCH action, bool fade, EFF_ENUM effnb, bool skip) {
-  switcheffectIdx(action, fade, effects.getBy(effnb), skip);
-}
-
-void LAMP::switcheffectIdx(EFFSWITCH action, bool fade, int idx, bool skip) {
-  LOG(printf_P, PSTR("EFFSWITCH=%d, fade=%d, idx=%d\n"), action, fade, idx);
+void LAMP::switcheffect(EFFSWITCH action, bool fade, uint16_t effnb, bool skip) {
+  LOG(printf_P, PSTR("EFFSWITCH=%d, fade=%d, effnb=%d\n"), action, fade, effnb);
 
   if (!skip) {
     switch (action) {
@@ -994,7 +990,7 @@ void LAMP::switcheffectIdx(EFFSWITCH action, bool fade, int idx, bool skip) {
         effects.setSelected(effects.getPrev());
         break;
     case EFFSWITCH::SW_SPECIFIC :
-        effects.setSelected(effects.getByIdx(idx));
+        effects.setSelected(effects.getBy(effnb));
         break;
     case EFFSWITCH::SW_RND :
         effects.setSelected(effects.getBy(random(0, effects.getModeAmount())));
@@ -1010,7 +1006,7 @@ void LAMP::switcheffectIdx(EFFSWITCH action, bool fade, int idx, bool skip) {
     }
     // тухнем "вниз" только на включенной лампе
     if (fade && ONflag) {
-      fadelight(FADE_MINCHANGEBRT, FADE_TIME, std::bind(&LAMP::switcheffectIdx, this, action, fade, idx, true));
+      fadelight(FADE_MINCHANGEBRT, FADE_TIME, std::bind(&LAMP::switcheffect, this, action, fade, effnb, true));
       return;
     }
   }
@@ -1032,7 +1028,7 @@ void LAMP::switcheffectIdx(EFFSWITCH action, bool fade, int idx, bool skip) {
   }
 
   // отрисовать текущий эффект
-  effects.worker->run(getUnsafeLedsArray(), effects.getCurrent());
+  effects.worker->run(getUnsafeLedsArray(), &effects);
   setBrightness(getNormalizedLampBrightness(), fade, natural);
 }
 

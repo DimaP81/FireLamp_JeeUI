@@ -75,7 +75,7 @@ void block_menu(Interface *interf, JsonObject *data){
     interf->json_section_end();
 }
 
-static EffectDesc *confEff = nullptr;
+static EffectListElem *confEff = nullptr;
 void block_effects_config_param(Interface *interf, JsonObject *data){
     if (!interf || !confEff) return;
 
@@ -85,7 +85,7 @@ void block_effects_config_param(Interface *interf, JsonObject *data){
 
     interf->button_submit(F("set_effect"), F("Сохранить"), F("gray"));
     interf->button_submit_value(F("set_effect"), F("copy"), F("Копировать"));
-    if (confEff->flags.copy) {
+    if (confEff->eff_nb&0xFF00) { // пока удаление только для копий, но в теории можно удалять что угодно
         interf->button_submit_value(F("set_effect"), F("del"), F("Удалить"), F("red"));
     }
 
@@ -103,17 +103,17 @@ void set_effects_config_param(Interface *interf, JsonObject *data){
 
     String act = (*data)[F("set_effect")];
     if (act == F("copy")) {
-        myLamp.effects.copyEffect(confEff->idx);
+        myLamp.effects.copyEffect(confEff); // копируем текущий
     } else
     if (act == F("del")) {
-        myLamp.effects.deleteEffect(confEff->idx);
+        myLamp.effects.deleteEffect(confEff); // удаляем текущий
     } else {
         confEff->canBeSelected((*data)[F("eff_sel")] == F("true"));
         confEff->isFavorite((*data)[F("eff_fav")] == F("true"));
     }
 
     if(!myLamp.effects.autoSaveConfig()){ // отложенная запись, не чаще чем однократно в 30 секунд
-        myLamp.ConfigSaveSetup(60*1000); //через минуту сработает еще попытка записи и так до успеха
+        myLamp.ConfigSaveSetup(10*1000); //через 10 секунд сработает еще попытка записи и так до успеха
     }
 
     section_main_frame(interf, data);
@@ -123,13 +123,14 @@ void block_effects_config(Interface *interf, JsonObject *data){
     if (!interf) return;
 
     interf->json_section_main(F("effects_config"), F("Управление"));
+    confEff = myLamp.effects.getSelectedListElement();
 
-    EffectDesc *eff = myLamp.effects.getEffectByIdx(0);
-    confEff = myLamp.effects.getSelected();
-
-    interf->select(F("effListConf"), String((int)confEff->idx), F("Эффект"), true);
-    while ((eff = myLamp.effects.getNextEffect(eff))->eff_nb != EFF_NONE) {
-        interf->option(String((int)eff->idx), eff->getName());
+    interf->select(F("effListConf"), String((int)confEff->eff_nb), F("Эффект"), true);
+    EffectListElem *eff = nullptr;
+    while ((eff = myLamp.effects.getNextEffect(eff)) != nullptr) {
+        EffectWorker *tmpeffect = new EffectWorker(eff);
+        interf->option(String(eff->eff_nb), tmpeffect->getName());
+        delete tmpeffect;
     }
     interf->json_section_end();
 
@@ -149,8 +150,8 @@ void show_effects_config(Interface *interf, JsonObject *data){
 
 void set_effects_config_list(Interface *interf, JsonObject *data){
     if (!interf || !data) return;
-    int num = (EFF_ENUM)(*data)[F("effListConf")];
-    confEff = myLamp.effects.getEffectByIdx(num);
+    uint16_t num = (*data)[F("effListConf")].as<uint16_t>();
+    confEff = myLamp.effects.getEffect(num);
     show_effects_config_param(interf, data);
 }
 
@@ -180,17 +181,17 @@ void show_effects_param(Interface *interf, JsonObject *data){
 
 void set_effects_list(Interface *interf, JsonObject *data){
     if (!data) return;
-    int num = (EFF_ENUM)(*data)[F("effList")];
-    int curr = myLamp.effects.getSelected()->idx;
-    EffectDesc *eff = myLamp.effects.getEffectByIdx(num);
+    uint16_t num = (*data)[F("effList")].as<uint16_t>();
+    uint16_t curr = myLamp.effects.getSelected();
+    EffectListElem *eff = myLamp.effects.getEffect(num);
     if (!eff) return;
 
-    LOG(printf_P, PSTR("EFF LIST n:%d, o:%d, on:%d, md:%d\n"), eff->idx, curr, myLamp.isLampOn(), myLamp.getMode());
-    if (eff->idx != curr) {
+    LOG(printf_P, PSTR("EFF LIST n:%d, o:%d, on:%d, md:%d\n"), eff->eff_nb, curr, myLamp.isLampOn(), myLamp.getMode());
+    if (eff->eff_nb != curr) {
         if (!myLamp.isLampOn()) {
-            myLamp.effects.moveByIdx(eff->idx); // переходим на выбранный эффект для начальной инициализации
+            myLamp.effects.moveBy(eff->eff_nb); // переходим на выбранный эффект для начальной инициализации
         } else {
-            myLamp.switcheffectIdx(SW_SPECIFIC, myLamp.getFaderFlag(), eff->idx);
+            myLamp.switcheffect(SW_SPECIFIC, myLamp.getFaderFlag(), eff->eff_nb);
         }
 
         jee.var(F("effList"), (*data)[F("effList")]);
@@ -215,7 +216,7 @@ void set_effects_bright(Interface *interf, JsonObject *data){
 
     myLamp.demoTimer(T_RESET);
     if(!myLamp.effects.autoSaveConfig()){ // отложенная запись, не чаще чем однократно в 30 секунд
-        myLamp.ConfigSaveSetup(60*1000); //через минуту сработает еще попытка записи и так до успеха
+        myLamp.ConfigSaveSetup(10*1000); //через 10 секунд сработает еще попытка записи и так до успеха
     }
 }
 
@@ -227,7 +228,7 @@ void set_effects_speed(Interface *interf, JsonObject *data){
 
     myLamp.demoTimer(T_RESET);
     if(!myLamp.effects.autoSaveConfig()){ // отложенная запись, не чаще чем однократно в 30 секунд
-        myLamp.ConfigSaveSetup(60*1000); //через минуту сработает еще попытка записи и так до успеха
+        myLamp.ConfigSaveSetup(10*1000); //через 10 секунд сработает еще попытка записи и так до успеха
     }
 }
 
@@ -239,7 +240,7 @@ void set_effects_scale(Interface *interf, JsonObject *data){
 
     myLamp.demoTimer(T_RESET);
     if(!myLamp.effects.autoSaveConfig()){ // отложенная запись, не чаще чем однократно в 30 секунд
-        myLamp.ConfigSaveSetup(60*1000); //через минуту сработает еще попытка записи и так до успеха
+        myLamp.ConfigSaveSetup(10*1000); //через 10 секунд сработает еще попытка записи и так до успеха
     }
 }
 
@@ -251,7 +252,7 @@ void set_effects_rval(Interface *interf, JsonObject *data){
 
     myLamp.demoTimer(T_RESET);
     if(!myLamp.effects.autoSaveConfig()){ // отложенная запись, не чаще чем однократно в 30 секунд
-        myLamp.ConfigSaveSetup(60*1000); //через минуту сработает еще попытка записи и так до успеха
+        myLamp.ConfigSaveSetup(10*1000); //через 10 секунд сработает еще попытка записи и так до успеха
     }
 }
 
@@ -300,11 +301,14 @@ void block_effects_main(Interface *interf, JsonObject *data){
     interf->button(F("eff_next"), F(">>>"), F("#5f9ea0"));
     interf->json_section_end();
 
-    EffectDesc *eff = myLamp.effects.getEffect(EFF_NONE);
-    interf->select(F("effList"), String(myLamp.effects.getSelected()->idx), F("Эффект"), true);
-    while ((eff = myLamp.effects.getNextEffect(eff))->eff_nb != EFF_NONE) {
+    interf->select(F("effList"), String(myLamp.effects.getSelected()), F("Эффект"), true);
+    LOG(printf_P,PSTR("Создаю список эффектов (%d):\n"),myLamp.effects.getModeAmount());
+    EffectListElem *eff = nullptr;
+    while ((eff = myLamp.effects.getNextEffect(eff)) != nullptr) {
         if (eff->canBeSelected()) {
-            interf->option(String((int)eff->idx), eff->getName());
+            EffectWorker *tmpeffect = new EffectWorker(eff);
+            interf->option(String(eff->eff_nb), tmpeffect->getName());
+            delete tmpeffect;
         }
     }
     interf->json_section_end();
@@ -471,8 +475,8 @@ void edit_lamp_config(Interface *interf, JsonObject *data){
         String filename = String(F("/glb/")) + name;
         jee.load(filename.c_str());
 
-        filename = String(F("/cfg/")) + name;
-        myLamp.effects.loadConfig(filename.c_str());
+        // filename = String(F("/cfg/")) + name;
+        // myLamp.effects.loadConfig(filename.c_str());
 
         filename = String(F("/evn/")) + name;
         myLamp.events.loadConfig(filename.c_str());
@@ -488,8 +492,8 @@ void edit_lamp_config(Interface *interf, JsonObject *data){
         String filename = String(F("/glb/")) + name;
         jee.save(filename.c_str(), true);
 
-        filename = String(F("/cfg/")) + name;
-        myLamp.effects.saveConfig(filename.c_str());
+        // filename = String(F("/cfg/")) + name;
+        // myLamp.effects.saveConfig(filename.c_str());
 
         filename = String(F("/evn/")) + name;
         myLamp.events.saveConfig(filename.c_str());
@@ -1376,7 +1380,7 @@ void remote_action(RA action, ...){
             } else {
                 myLamp.switcheffect(SW_NEXT_DEMO, myLamp.getFaderFlag());
             }
-            return remote_action(RA::RA_EFFECT, String(myLamp.effects.getSelected()->idx).c_str(), NULL);
+            return remote_action(RA::RA_EFFECT, String(myLamp.effects.getSelected()).c_str(), NULL);
         case RA::RA_EFFECT: {
             CALL_INTF(F("effList"), value, set_effects_list);
             break;
@@ -1402,19 +1406,19 @@ void remote_action(RA action, ...){
 #endif
         case RA::RA_EFF_NEXT:
             myLamp.switcheffect(SW_NEXT, myLamp.getFaderFlag());
-            return remote_action(RA::RA_EFFECT, String(myLamp.effects.getSelected()->idx).c_str(), NULL);
+            return remote_action(RA::RA_EFFECT, String(myLamp.effects.getSelected()).c_str(), NULL);
         case RA::RA_EFF_PREV:
             myLamp.switcheffect(SW_PREV, myLamp.getFaderFlag());
-            return remote_action(RA::RA_EFFECT, String(myLamp.effects.getSelected()->idx).c_str(), NULL);
+            return remote_action(RA::RA_EFFECT, String(myLamp.effects.getSelected()).c_str(), NULL);
         case RA::RA_EFF_RAND:
             myLamp.switcheffect(SW_RND, myLamp.getFaderFlag());
-            return remote_action(RA::RA_EFFECT, String(myLamp.effects.getSelected()->idx).c_str(), NULL);
+            return remote_action(RA::RA_EFFECT, String(myLamp.effects.getSelected()).c_str(), NULL);
         case RA::RA_WHITE_HI:
             myLamp.switcheffect(SW_WHITE_HI);
-            return remote_action(RA::RA_EFFECT, String(myLamp.effects.getSelected()->idx).c_str(), NULL);
+            return remote_action(RA::RA_EFFECT, String(myLamp.effects.getSelected()).c_str(), NULL);
         case RA::RA_WHITE_LO:
             myLamp.switcheffect(SW_WHITE_LO);
-            return remote_action(RA::RA_EFFECT, String(myLamp.effects.getSelected()->idx).c_str(), NULL);
+            return remote_action(RA::RA_EFFECT, String(myLamp.effects.getSelected()).c_str(), NULL);
         case RA::RA_ALARM:
             myLamp.startAlarm();
             break;
@@ -1432,11 +1436,11 @@ void remote_action(RA action, ...){
             }
             break;
         case RA::RA_EFF_CONFIG:
-            if (value && *value) {
-                String filename = String(F("/cfg/"));
-                filename.concat(value);
-                myLamp.effects.loadConfig(filename.c_str());
-            }
+            // if (value && *value) {
+            //     String filename = String(F("/cfg/"));
+            //     filename.concat(value);
+            //     myLamp.effects.loadConfig(filename.c_str());
+            // }
             break;
         case RA::RA_EVENTS_CONFIG:
             if (value && *value) {
