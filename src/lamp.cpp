@@ -429,7 +429,7 @@ void LAMP::changePower(bool flag) // флаг включения/выключе�
 {
   stopAlarm();            // любая активность в интерфейсе - отключаем будильник
   if (flag == ONflag) return;  // пропускаем холостые вызовы
-  LOG(printf_P, PSTR("Lamp powering %s\n"), flag ? "ON": "Off");
+  LOG(printf_P, PSTR("Lamp powering %s\n"), flag ? F("ON"): F("Off"));
   ONflag = flag;
 
   if (flag){
@@ -538,7 +538,7 @@ void LAMP::startOTAUpdate()
   storedMode = mode;
   mode = LAMPMODE::MODE_OTA;
 
-  effects.moveBy(EFF_MATRIX); // принудительное включение режима "Матрица" для индикации перехода в режим обновления по воздуху
+  effects.directMoveBy(EFF_MATRIX); // принудительное включение режима "Матрица" для индикации перехода в режим обновления по воздуху
   FastLED.clear();
   changePower(true);
   sendStringToLamp(String(PSTR("- OTA UPDATE ON -")).c_str(), CRGB::Green);
@@ -1011,7 +1011,9 @@ void LAMP::switcheffect(EFFSWITCH action, bool fade, uint16_t effnb, bool skip) 
     }
   }
 
-  changePower(true);  // любой запрос на смену эффекта автоматом включает лампу
+  // Не-не-не, я против того чтобы за пользователя решать когда ему включать лампу
+  // поскольку настройки НУЖНО разрешить крутить и при выключенной лампе.
+  // changePower(true);  // любой запрос на смену эффекта автоматом включает лампу
   effects.moveSelected();
 
   bool natural = true;
@@ -1027,8 +1029,9 @@ void LAMP::switcheffect(EFFSWITCH action, bool fade, uint16_t effnb, bool skip) 
   default:;
   }
 
-  // отрисовать текущий эффект
-  effects.worker->run(getUnsafeLedsArray(), &effects);
+  // отрисовать текущий эффект (только если лампа включена, иначе бессмысленно)
+  if(ONflag)
+    effects.worker->run(getUnsafeLedsArray(), &effects);
   setBrightness(getNormalizedLampBrightness(), fade, natural);
 }
 

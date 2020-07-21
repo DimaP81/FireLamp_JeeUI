@@ -967,6 +967,7 @@ private:
     uint16_t curEff = (uint16_t)EFF_NONE;     ///< энумератор текущего эффекта
     uint16_t selEff = (uint16_t)EFF_NONE;     ///< энумератор выбранного эффекта (для отложенного перехода)
 
+    String originalName; // имя эффекта дефолтное
     String effectName; // имя эффекта (предварительно заданное или из конфига)
     String version; // версия эффекта
 
@@ -1004,6 +1005,8 @@ public:
     void initDefault(); // пусть вызывается позже и явно
     ~EffectWorker() { clearEffectList(); clearControlsList(); }
 
+    LList<UIControl*>&getControls() { return selcontrols; }
+
     // дефолтный конструктор
     EffectWorker() : effects(), controls() { workerset(EFF_NONE); } // initDefault(); убрал из конструктора, т.к. крайне неудобно становится отлаживать...
 
@@ -1029,7 +1032,9 @@ public:
     byte getRval() { return controls.size()>=4 ? controls[3]->getval().toInt() : 0; } // фигня конечно, пока все это как затычки...
     byte isRval() { return controls.size()>=4; } // фигня конечно, пока все это как затычки...
 
-    const char *getName() {return effectName.c_str();}
+    const String &getEffectName() {return effectName;}
+    const String &getOriginalNameName() {return originalName;}
+    
     // текущий эффект или его копия
     const uint16_t getEn() {return curEff;}
 
@@ -1053,11 +1058,11 @@ public:
     // перейти по предворительно выбранному
     void moveSelected();
     // перейти на количество шагов, к ближайшему большему (для DEMO)
-    void moveByCnt(byte cnt){ uint16_t eff = getByCnt(cnt); moveBy(eff); }
+    void moveByCnt(byte cnt){ uint16_t eff = getByCnt(cnt); directMoveBy(eff); }
     // получить номер эффекта смещенного на количество шагов (для DEMO)
     uint16_t getByCnt(byte cnt);
-    // перейти на указанный
-    void moveBy(uint16_t select);
+    // перейти на указанный в обход нормального переключения, использовать только понимая что это (нужно для начальной инициализации и переключений выключенной лампы)
+    void directMoveBy(uint16_t select);
     // вернуть первый элемент списка
     EffectListElem *getFirstEffect();
     // вернуть следующий эффект

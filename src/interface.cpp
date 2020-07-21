@@ -124,12 +124,11 @@ void block_effects_config(Interface *interf, JsonObject *data){
 
     interf->json_section_main(F("effects_config"), F("Управление"));
     confEff = myLamp.effects.getSelectedListElement();
-
     interf->select(F("effListConf"), String((int)confEff->eff_nb), F("Эффект"), true);
     EffectListElem *eff = nullptr;
     while ((eff = myLamp.effects.getNextEffect(eff)) != nullptr) {
         EffectWorker *tmpeffect = new EffectWorker(eff);
-        interf->option(String(eff->eff_nb), tmpeffect->getName());
+        interf->option(String(eff->eff_nb), tmpeffect->getEffectName());
         delete tmpeffect;
     }
     interf->json_section_end();
@@ -153,21 +152,39 @@ void set_effects_config_list(Interface *interf, JsonObject *data){
     uint16_t num = (*data)[F("effListConf")].as<uint16_t>();
     confEff = myLamp.effects.getEffect(num);
     show_effects_config_param(interf, data);
+    myLamp.demoTimer(T_RESET);
 }
 
 void block_effects_param(Interface *interf, JsonObject *data){
     if (!interf) return;
     interf->json_section_begin(F("effects_param"));
-    if (myLamp.IsGlobalBrightness()) {
-        interf->range(F("bright"), myLamp.getNormalizedLampBrightness(), 1, 255, 1, F("Глоб. яркость"), true);
-    } else {
-        interf->range(F("bright"), myLamp.getNormalizedLampBrightness(), 1, 255, 1, F("Яркость"), true);
-    }
-    interf->range(F("speed"), myLamp.effects.getSpeedS(), 1, 255, 1, F("Скорость"), true);
-    interf->range(F("scale"), myLamp.effects.getScaleS(), 1, 255, 1, F("Масштаб"), true);
-    if (myLamp.effects.isRval()) {
-        interf->range(F("rval"), myLamp.effects.getRvalS(), 1, 255, 1, F("Масштаб"), true);
-    }
+    
+    // В общем пробовал я передавать id как есть с заменой во всех местах (работает за мелкими исключениями), но хз... может для системных 0...2 лучше так как есть
+    // Нужно подумать...
+
+    LList<UIControl*>&controls = myLamp.effects.getControls();
+        for(int i=0; i<controls.size();i++){
+            interf->range(
+            //String(controls[i]->getId())
+            controls[i]->getId()==0 ? F("bright") : controls[i]->getId()==1 ? F("speed") : controls[i]->getId()==2 ? F("scale") : String(controls[i]->getId())
+            ,i ? controls[i]->getval().toInt() : myLamp.getNormalizedLampBrightness()
+            ,controls[i]->getmin().toInt()
+            ,controls[i]->getmax().toInt()
+            ,controls[i]->getstep().toInt()
+            ,i ? controls[i]->getname() : myLamp.IsGlobalBrightness() ? F("Глоб. яркость") : F("Яркость")
+            , true);
+        }
+
+    // if (myLamp.IsGlobalBrightness()) {
+    //     interf->range(F("bright"), myLamp.getNormalizedLampBrightness(), 1, 255, 1, F("Глоб. яркость"), true);
+    // } else {
+    //     interf->range(F("bright"), myLamp.getNormalizedLampBrightness(), 1, 255, 1, F("Яркость"), true);
+    // }
+    // interf->range(F("speed"), myLamp.effects.getSpeedS(), 1, 255, 1, F("Скорость"), true);
+    // interf->range(F("scale"), myLamp.effects.getScaleS(), 1, 255, 1, F("Масштаб"), true);
+    // if (myLamp.effects.isRval()) {
+    //     interf->range(F("rval"), myLamp.effects.getRvalS(), 1, 255, 1, F("Дополнительный"), true);
+    // }
 
     interf->json_section_end();
 }
@@ -189,7 +206,7 @@ void set_effects_list(Interface *interf, JsonObject *data){
     LOG(printf_P, PSTR("EFF LIST n:%d, o:%d, on:%d, md:%d\n"), eff->eff_nb, curr, myLamp.isLampOn(), myLamp.getMode());
     if (eff->eff_nb != curr) {
         if (!myLamp.isLampOn()) {
-            myLamp.effects.moveBy(eff->eff_nb); // переходим на выбранный эффект для начальной инициализации
+            myLamp.effects.directMoveBy(eff->eff_nb); // переходим на выбранный эффект для начальной инициализации
         } else {
             myLamp.switcheffect(SW_SPECIFIC, myLamp.getFaderFlag(), eff->eff_nb);
         }
@@ -307,7 +324,7 @@ void block_effects_main(Interface *interf, JsonObject *data){
     while ((eff = myLamp.effects.getNextEffect(eff)) != nullptr) {
         if (eff->canBeSelected()) {
             EffectWorker *tmpeffect = new EffectWorker(eff);
-            interf->option(String(eff->eff_nb), tmpeffect->getName());
+            interf->option(String(eff->eff_nb), tmpeffect->getEffectName());
             delete tmpeffect;
         }
     }
@@ -336,6 +353,7 @@ void set_onflag(Interface *interf, JsonObject *data){
     if (newpower != myLamp.isLampOn()) {
         if (newpower) {
             // включаем через switcheffect, т.к. простого isOn недостаточно чтобы запустить фейдер и поменять яркость (при необходимости)
+            myLamp.changePower(newpower);
             myLamp.switcheffect(SW_SPECIFIC, myLamp.getFaderFlag(), myLamp.effects.getEn());
         } else {
             myLamp.changePower(newpower);

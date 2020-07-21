@@ -176,7 +176,7 @@ void EffectWorker::workerset(uint16_t effect, const bool isCfgProceed){
 
   if(worker){
     worker->pre_init(static_cast<EFF_ENUM>(effect%256));
-    effectName = worker->getname();
+    originalName = effectName = worker->getname(); // сначла заполним дефолтным именем, а затем лишь вычитаем из конфига
     if(isCfgProceed){ // читаем конфиг только если это требуется, для индекса - пропускаем
       loadeffconfig(effect);
       // окончательная инициализация эффекта тут
@@ -248,6 +248,15 @@ void EffectWorker::initDefault()
           effects.add(new EffectListElem(item[F("nb")].as<uint16_t>(), item[F("fl")].as<uint8_t>()));
           //LOG(printf_P,PSTR("%d : %d\n"),item[F("nb")].as<uint16_t>(), item[F("fl")].as<uint8_t>());
       }
+      effects.sort([](EffectListElem *&a, EffectListElem *&b){ return a->eff_nb - b->eff_nb;}); // сортирую по eff_nb
+      uint16_t chk = 0; // удаляю дубликаты
+      for(int i=0; i<effects.size(); i++){
+        if(effects[i]->eff_nb==chk){
+          delete effects.remove(i);
+          continue;
+        }
+        chk = effects[i]->eff_nb;
+      }
   }
 }
 
@@ -266,7 +275,7 @@ void EffectWorker::loadeffname(const uint16_t nb, const char *folder)
       if (error) {
         return;
       }
-      effectName = doc.containsKey(F("name")) && doc[F("name")].as<String>()!="" ? doc[F("name")].as<String>() : effectName;
+      effectName = doc.containsKey(F("name")) && doc[F("name")].as<String>()!="" ? doc[F("name")].as<String>() : effectName; // перенакрываем именем из конфига, если есть
   }
 }
 
@@ -658,7 +667,8 @@ void EffectWorker::deleteFromIndexFile(const uint16_t effect)
           if(var[F("nb")].as<uint16_t>()==effect)
             arr.remove(i);
       }
-      serializeJson(doc,idx);
+      idx.clear();
+      serializeJson(arr,idx);
       indexFile = LittleFS.open(filename, "w");
       indexFile.print(idx);
       indexFile.flush();
@@ -670,18 +680,31 @@ void EffectWorker::deleteFromIndexFile(const uint16_t effect)
 // удалить эффект
 void EffectWorker::deleteEffect(const EffectListElem *eff)
 {
+  uint16_t prevEff = EFF_ENUM::EFF_NONE;
   for(int i=0; i<effects.size(); i++){
+      prevEff = effects[i]->eff_nb;
       if(effects[i]->eff_nb==eff->eff_nb){
           deleteFromIndexFile(eff->eff_nb);
           delete effects.remove(i);
+          break;
       }
   }
+  directMoveBy(prevEff);
 }
 
 // копирование эффекта
 void EffectWorker::copyEffect(const EffectListElem *base)
 {
   EffectListElem *copy = new EffectListElem(base); // создать копию переданного эффекта
+  uint16_t foundcnt=0;
+  for(int i=0; i<effects.size();i++){
+    if((effects[i]->eff_nb&0x00FF)==(copy->eff_nb&0x00FF)) // найдены копии
+      foundcnt++;
+  }
+  if(foundcnt){
+    copy->eff_nb=(((foundcnt+1) << 8 ) | (copy->eff_nb&0xFF)); // в старшем байте увеличиваем значение на число имеющихся копий
+  }
+
   EffectWorker *effect = new EffectWorker(base,copy); // создать параметры для него (конфиг, индекс и т.д.)
   effects.add(copy);
   delete effect; // после того как все создано, временный экземпляр EffectWorker уже не нужен
@@ -690,7 +713,7 @@ void EffectWorker::copyEffect(const EffectListElem *base)
 // вернуть выбранный элемент списка
 EffectListElem *EffectWorker::getSelectedListElement()
 { 
-  EffectListElem *res = nullptr;
+  EffectListElem *res = effects.size()>0? effects[0] : nullptr;
   for(int i=0; i<effects.size(); i++){
       if(effects[i]->eff_nb==selEff)
           res=effects[i];
@@ -740,11 +763,11 @@ EffectListElem *EffectWorker::getNextEffect(EffectListElem *current){
 }
 
 // перейти на указанный
-void EffectWorker::moveBy(uint16_t select)
+void EffectWorker::directMoveBy(uint16_t select)
 { 
-  uint16_t eff=getBy(select);
-  workerset(eff);
-  curEff = eff;
+  // выполняется в обход фейдера, как моментальное переключение
+  setSelected(getBy(select));
+  moveSelected();
 }
 
 // получить номер эффекта смещенного на количество шагов, к ближайшему большему при превышении (для DEMO)
@@ -785,21 +808,23 @@ uint16_t EffectWorker::getByCnt(byte cnt)
 // предыдущий эффект, кроме canBeSelected==false
 uint16_t EffectWorker::getPrev()
 {
+  if(!isSelected()) return selEff; // если эффект в процессе смены, то возвращаем selEff
+
   // все индексы списка и их синхронизация - фигня ИМХО, исходим только от curEff
   uint16_t firstfound = curEff;
   bool found = false;
   for(int i=0; i<effects.size(); i++){
-      if(effects[i]->eff_nb==curEff){ // нашли себя
+      if(found && firstfound!=curEff) { // нашли эффект перед собой
+          break;
+      } else {
+          found = false; // перед текущим не нашлось подходящих, поэтому возьмем последний из canBeSelected()
+      }
+      if(effects[i]->eff_nb==curEff && i!=0){ // нашли себя, но не первым :)
           found = true;
           continue;
       }
       if(effects[i]->canBeSelected()){
           firstfound = effects[i]->eff_nb; // первый найденный, на случай если следующего после текущего не будет
-          if(found && firstfound!=curEff) { // нашли эффект перед собой
-              break;
-          } else {
-              found = false; // перед текущим не нашлось подходящих, поэтому возьмем последний из canBeSelected()
-          }
       }
   }
   return firstfound;
@@ -810,6 +835,8 @@ uint16_t EffectWorker::getPrev()
 // следующий эффект, кроме canBeSelected==false
 uint16_t EffectWorker::getNext()
 {
+  if(!isSelected()) return selEff; // если эффект в процессе смены, то возвращаем selEff
+  
   // все индексы списка и их синхронизация - фигня ИМХО, исходим только от curEff
   uint16_t firstfound = curEff;
   bool found = false;
@@ -859,4 +886,5 @@ void EffectWorker::moveSelected(){
   curEff = selEff;
   clearControlsList();
   controls = selcontrols; // теперь оба списка совпадают, смена эффекта завершена
+  //LOG(printf_P,PSTR("%d %d\n"),controls.size(), selcontrols.size());
 }
