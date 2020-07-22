@@ -160,8 +160,10 @@ void EffectCalc::scale2pallete(){
   if (!usepalettes)
     return;
 
-  if (myLamp.effects.isRval()) {
-    palettemap(palettes, myLamp.effects.getRval());
+  // тут фигня понаписана, ну да ладно, пока поменяю влоб, т.е. если контролов > 3, то следующий типа палитра
+  // но на деле нужно читать кто есть кто... т.е. имя контрола
+  if (myLamp.effects.getControls().size()>3) {
+    palettemap(palettes, myLamp.effects.getControls()[4]->getVal().toInt());
   } else {
     palettemap(palettes, scale);
   }
@@ -867,7 +869,7 @@ bool EffectLighterTracers::lighterTracersRoutine(CRGB *leds, EffectWorker *param
   }
   else                                                      // режим со следами
   {
-    myLamp.blur2d(myLamp.effects.getSpeed()/10);
+    myLamp.blur2d(speed/10); // точно нужен прямой доступ??? 
     EffectMath::fader(TRACK_STEP);
   }
 
@@ -2510,7 +2512,8 @@ bool EffectFire2018::fire2018Routine(CRGB *leds, EffectWorker *param)
     {
       uint8_t dim = noise3dx[0][x][y];
       // high value = high flames
-      dim = dim / 1.7 * constrain(0.05*myLamp.effects.getBrightness()+0.01,0.01,1.0);
+      //dim = dim / 1.7 * constrain(0.05*myLamp.effects.getBrightness()+0.01,0.01,1.0); //точно нужен прямой доступ?
+      dim = dim / 1.7 * constrain(0.05*brightness+0.01,0.01,1.0);
       dim = 255 - dim;
       fire18heat[myLamp.getPixelNumber(x, y)] = scale8(fire18heat[myLamp.getPixelNumber(x, y)], dim);
     }
@@ -3031,12 +3034,14 @@ void EffectFire::shiftUp() {                                            //под
 void EffectFire::drawFrame(uint8_t pcnt, bool isColored) {                  // прорисовка нового кадра
   int32_t nextv;
 #ifdef UNIVERSE_FIRE                                            // если определен универсальный огонь
-  uint8_t baseHue = (myLamp.effects.getScale() - 1U) * 2.6;
+  //uint8_t baseHue = (myLamp.effects.getControls()[2]->getVal().toInt() - 1U) * 2.6; // точно нужен прямой доступ???
+  uint8_t baseHue = (scale - 1U) * 2.6; // может так хватит?
 #else
   uint8_t baseHue = isColored ? 255U : 0U;
 #endif
-  uint8_t baseSat = (myLamp.effects.getScale() < 255) ? 255U : 0U;  // вычисление базового оттенка
-
+  //uint8_t baseSat = ( myLamp.effects.getControls()[2]->getVal().toInt() < 255) ? 255U : 0U;  // вычисление базового оттенка // точно нужен прямой доступ???
+  uint8_t baseSat = ( scale < 255) ? 255U : 0U;  // вычисление базового оттенка // может так хватит?
+  
   uint8_t deltaValue = random8(0U, 3U) ? constrain (shiftValue[0] + random8(0U, 2U) - random8(0U, 2U), 15, 17) : shiftValue[0]; // random(0U, 3U)= скорость смещения очага чем больше 3U - тем медленнее                          // текущее смещение пламени (hueValue)
 
   //first row interpolates with the "next" line

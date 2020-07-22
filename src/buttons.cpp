@@ -33,16 +33,20 @@ void Button::activate(bool reverse){
 				if (newval == 1 || newval == 255) direction = !direction;
 				remote_action(RA::RA_BRIGHT_NF, String(newval).c_str(), NULL);
 				return;
-			case BA_SPEED:
-				newval = constrain(myLamp.effects.getSpeed() + (myLamp.effects.getSpeed() / 25 + 1) * (direction * 2 - 1), 1 , 255);
+			case BA_SPEED: {
+				byte speed = (myLamp.effects.getControls()[1]->getVal()).toInt();
+				newval = constrain( speed + (speed / 25 + 1) * (direction * 2 - 1), 1 , 255);
 				if (newval == 1 || newval == 255) direction = !direction;
 				remote_action(RA::RA_SPEED, String(newval).c_str(), NULL);
 				return;
-			case BA_SCALE:
-				newval = constrain(myLamp.effects.getScale() + (myLamp.effects.getScale() / 25 + 1) * (direction * 2 - 1), 1 , 255);
+			}
+			case BA_SCALE: {
+				byte scale = (myLamp.effects.getControls()[2]->getVal()).toInt();
+				newval = constrain(scale + (scale / 25 + 1) * (direction * 2 - 1), 1 , 255);
 				if (newval == 1 || newval == 255) direction = !direction;
 				remote_action(RA::RA_SCALE, String(newval).c_str(), NULL);
 				return;
+			}
 			case BA_ON: ract = RA_ON; break;
 			case BA_OFF: ract = RA_OFF; break;
 			case BA_DEMO: ract = RA_DEMO; break;

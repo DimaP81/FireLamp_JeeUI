@@ -204,7 +204,7 @@ public:
     /*
     *  получить имя эффекта
     */
-    virtual const String getname() { return String(F("@name@")); }
+    virtual const String getName() { return String(F("@name@")); }
 
     /*
     *  получить версию эффекта, используется для форсирования пересоздания конфига, даже если он уже существует, перенакрыть функцию и изменить версию
@@ -323,7 +323,7 @@ class EffectFreq : public EffectCalc {
 private:
     int8_t peakX[2][WIDTH];
 
-    const String getname() override {return String(FPSTR(T_FREQ));}
+    const String getName() override {return String(FPSTR(T_FREQ));}
     bool freqAnalyseRoutine(CRGB *leds, EffectWorker *param);
     void load() override;
 public:
@@ -338,7 +338,7 @@ private:
     CRGB hColor[1]; // цвет часов и минут
     CRGB mColor[1]; // цвет часов и минут
 
-    const String getname() override {return String(FPSTR(T_TIME));}
+    const String getName() override {return String(FPSTR(T_TIME));}
     bool timePrintRoutine(CRGB *leds, EffectWorker *param);
     void load() override;
 public:
@@ -347,7 +347,7 @@ public:
 
 class EffectMetaBalls : public EffectCalc {
 private:
-    const String getname() override {return String(FPSTR(T_METABALLS));}
+    const String getName() override {return String(FPSTR(T_METABALLS));}
     bool metaBallsRoutine(CRGB *leds, EffectWorker *param);
 
 public:
@@ -356,7 +356,7 @@ public:
 
 class EffectSinusoid3 : public EffectCalc {
 private:
-    const String getname() override {return String(FPSTR(T_SINUSOID3));}
+    const String getName() override {return String(FPSTR(T_SINUSOID3));}
     bool sinusoid3Routine(CRGB *leds, EffectWorker *param);
 
 public:
@@ -377,7 +377,7 @@ private:
     long  bballsTLast[bballsMaxNUM_BALLS] ;             // The clock time of the last ground strike
     float bballsShift[bballsMaxNUM_BALLS];
     
-    const String getname() override {return String(FPSTR(T_BBALS));}
+    const String getName() override {return String(FPSTR(T_BBALS));}
     bool bBallsRoutine(CRGB *leds, EffectWorker *param);
 
 public:
@@ -387,7 +387,7 @@ public:
 
 class EffectLightBalls : public EffectCalc {
 private:
-    const String getname() override {return String(FPSTR(T_PAINTBALL));}
+    const String getName() override {return String(FPSTR(T_PAINTBALL));}
     bool lightBallsRoutine(CRGB *leds, EffectWorker *param);
 
 public:
@@ -402,7 +402,7 @@ private:
   uint8_t shiftValue[HEIGHT];                            // массив дороожки горизонтального смещения пламени (hueValue)
   unsigned char matrixValue[8][16];
 
-    const String getname() override {return String(FPSTR(T_FIRE));}
+    const String getName() override {return String(FPSTR(T_FIRE));}
     void drawFrame(uint8_t pcnt, bool isColored);
     void generateLine();
     void shiftUp();
@@ -423,7 +423,7 @@ private:
     uint8_t _pulse_hue = 0;
     uint8_t _pulse_hueall = 0;
 
-    const String getname() override {return String(FPSTR(T_PULSE));}
+    const String getName() override {return String(FPSTR(T_PULSE));}
     bool pulseRoutine(CRGB *leds, EffectWorker *param);
 
 public:
@@ -437,7 +437,7 @@ private:
     int8_t vectorB[2U];
     float coordB[2U];
 
-    const String getname() override {return String(FPSTR(T_CUBE));}
+    const String getName() override {return String(FPSTR(T_CUBE));}
     bool ballRoutine(CRGB *leds, EffectWorker *param);
 
 public:
@@ -451,7 +451,7 @@ private:
     float coord[BALLS_AMOUNT][2U];
     int16_t ballColors[BALLS_AMOUNT];
 
-    const String getname() override {return String(FPSTR(T_LIGHTER_TRACES));}
+    const String getName() override {return String(FPSTR(T_LIGHTER_TRACES));}
     bool lighterTracersRoutine(CRGB *leds, EffectWorker *param);
 
 public:
@@ -463,7 +463,7 @@ class EffectRainbow : public EffectCalc {
 private:
     float hue; // вещественное для малых скоростей, нужно приведение к uint8_t по месту
     
-    const String getname() override {return String(FPSTR(T_RAINBOW_2D));}
+    const String getName() override {return String(FPSTR(T_RAINBOW_2D));}
     bool rainbowHorVertRoutine(bool isVertical);
     bool rainbowDiagonalRoutine(CRGB *leds, EffectWorker *param);
 
@@ -475,7 +475,7 @@ class EffectColors : public EffectCalc {
 private:
     uint8_t ihue;
 
-    const String getname() override {return String(FPSTR(T_COLORS));}
+    const String getName() override {return String(FPSTR(T_COLORS));}
     bool colorsRoutine(CRGB *leds, EffectWorker *param);
 
 public:
@@ -486,7 +486,7 @@ public:
 class EffectWhiteColorStripe : public EffectCalc {
 private:
 
-    const String getname() override {return String(FPSTR(T_WHITE_COLOR));}
+    const String getName() override {return String(FPSTR(T_WHITE_COLOR));}
     bool whiteColorStripeRoutine(CRGB *leds, EffectWorker *param);
 
 public:
@@ -496,7 +496,7 @@ public:
 class EffectMatrix : public EffectCalc {
 private:
 
-    const String getname() override {return String(FPSTR(T_MATRIX));}
+    const String getName() override {return String(FPSTR(T_MATRIX));}
     bool matrixRoutine(CRGB *leds, EffectWorker *param);
 
 public:
@@ -506,7 +506,7 @@ public:
 class EffectSnow : public EffectCalc {
 private:
 
-    const String getname() override {return String(FPSTR(T_SNOW));}
+    const String getName() override {return String(FPSTR(T_SNOW));}
     bool snowRoutine(CRGB *leds, EffectWorker *param);
     float snowShift = 0.0; // сдвиг снега
 public:
@@ -515,7 +515,7 @@ public:
 
 class EffectSparcles : public EffectCalc {
 private:
-    const String getname() override {return String(FPSTR(T_SPARKLES));}
+    const String getName() override {return String(FPSTR(T_SPARKLES));}
     bool sparklesRoutine(CRGB *leds, EffectWorker *param);
 
 public:
@@ -526,7 +526,7 @@ class EffectEverythingFall : public EffectCalc {
 private:
     byte heat[WIDTH][HEIGHT];
     
-    const String getname() override {return String(FPSTR(T_EVERYTHINGFALL));}
+    const String getName() override {return String(FPSTR(T_EVERYTHINGFALL));}
     bool fire2012WithPalette(CRGB *leds, EffectWorker *param);
 
 public:
@@ -549,7 +549,7 @@ private:
   const uint8_t fireSmoothing = 90;
   uint8_t noise3d[NUM_LAYERS][WIDTH][HEIGHT];
   
-  const String getname() override {return String(FPSTR(T_FIRE2012));}
+  const String getName() override {return String(FPSTR(T_FIRE2012));}
   bool fire2012Routine(CRGB *leds, EffectWorker *param);
 
 public:
@@ -559,7 +559,7 @@ public:
 
 class EffectStarFall : public EffectCalc {
 private:
-    const String getname() override {return String(FPSTR(T_SNOWSTORMSTARFALL));}
+    const String getName() override {return String(FPSTR(T_SNOWSTORMSTARFALL));}
     bool snowStormStarfallRoutine(CRGB *leds, EffectWorker *param);
 
 public:
@@ -574,7 +574,7 @@ private:
     uint8_t lightersColor[LIGHTERS_AM];
     float lightersPos[2U][LIGHTERS_AM];
 
-    const String getname() override {return String(FPSTR(T_LIGHTERS));}
+    const String getName() override {return String(FPSTR(T_LIGHTERS));}
     bool lightersRoutine(CRGB *leds, EffectWorker *param);
 
 public:
@@ -585,7 +585,7 @@ public:
 class Effect3DNoise : public EffectCalc {
 private:
 //    uint16_t XY(uint8_t x, uint8_t y);
-    const String getname() override {
+    const String getName() override {
         switch (effect)
         {
         case EFF_ENUM::EFF_MADNESS :
@@ -607,7 +607,7 @@ private:
         case EFF_ENUM::EFF_LAVA :
             return String(FPSTR(T_LAVA));
         default:
-            return EffectCalc::getname();
+            return EffectCalc::getName();
         }
     }
     void fillNoiseLED();
@@ -651,7 +651,7 @@ private:
   float spirotheta1 = 0;
   float spirotheta2 = 0;
 
-  const String getname() {return String(FPSTR(T_SPIRO));}
+  const String getName() {return String(FPSTR(T_SPIRO));}
   bool spiroRoutine(CRGB *leds, EffectWorker *param);
 
 public:
@@ -663,7 +663,7 @@ class EffectPrismata : public EffectCalc {
 private:
   byte spirohueoffset = 0;
 
-  const String getname() {return String(FPSTR(T_PRIZMATA));}
+  const String getName() {return String(FPSTR(T_PRIZMATA));}
   bool prismataRoutine(CRGB *leds, EffectWorker *param);
 
 public:
@@ -680,7 +680,7 @@ private:
   bool predatorPresent;
   uint8_t hueoffset;
 
-  const String getname() {return String(FPSTR(T_FLOCK));}
+  const String getName() {return String(FPSTR(T_FLOCK));}
   bool flockRoutine(CRGB *leds, EffectWorker *param);
 
 public:
@@ -710,7 +710,7 @@ private:
    const uint8_t e_centerX =  (WIDTH / 2) - 1;
    const uint8_t e_centerY = (HEIGHT / 2) - 1;
 
-    const String getname() override {
+    const String getName() override {
         switch (effect)
         {
         case EFF_ENUM::EFF_RAINBOWCOMET :
@@ -718,7 +718,7 @@ private:
         case EFF_ENUM::EFF_RAINBOWCOMET3 :
             return String(FPSTR(T_RAINBOWCOMET3));
         default:
-            return EffectCalc::getname();
+            return EffectCalc::getName();
         }
     }
     void drawFillRect2_fast(int8_t x1, int8_t y1, int8_t x2, int8_t y2, CRGB color);
@@ -733,7 +733,7 @@ public:
 
 class EffectSwirl : public EffectCalc {
 private:
-    const String getname() {return String(FPSTR(T_SWIRL));}
+    const String getName() {return String(FPSTR(T_SWIRL));}
     bool swirlRoutine(CRGB *leds, EffectWorker *param);
 
 public:
@@ -746,7 +746,7 @@ private:
   uint8_t dri_phase;
   uint8_t _dri_speed;
   uint8_t _dri_delta;
-  const String getname() override {
+  const String getName() override {
         switch (effect)
         {
         case EFF_ENUM::EFF_DRIFT :
@@ -754,7 +754,7 @@ private:
         case EFF_ENUM::EFF_DRIFT2 :
             return String(FPSTR(T_DRIFT2));
         default:
-            return EffectCalc::getname();
+            return EffectCalc::getName();
         }
     }
   bool incrementalDriftRoutine(CRGB *leds, EffectWorker *param);
@@ -770,7 +770,7 @@ private:
   uint8_t thue = 0U;
   uint8_t tnum;
   CRGB ledsbuff[NUM_LEDS];
-  const String getname() {return String(FPSTR(T_TWINKLES));}
+  const String getName() {return String(FPSTR(T_TWINKLES));}
   bool twinklesRoutine(CRGB *leds, EffectWorker *param);
 
 public:
@@ -785,7 +785,7 @@ private:
   uint8_t waveRotation;
   uint8_t whue;
   uint8_t waveTheta;
-  const String getname() {return String(FPSTR(T_WAVES));}
+  const String getName() {return String(FPSTR(T_WAVES));}
   bool wavesRoutine(CRGB *leds, EffectWorker *param);
 
 public:
@@ -797,7 +797,7 @@ class EffectRadar : public EffectCalc {
 private:
   uint8_t eff_offset;        // глобальная переменная для работы эффектов (обычно применяется для циклического пересчета hue, количества кадров и др...)
   uint8_t eff_theta;         // глобальная переменная угла для работы эффектов
-  const String getname() {return String(FPSTR(T_RADAR));}
+  const String getName() {return String(FPSTR(T_RADAR));}
   bool radarRoutine(CRGB *leds, EffectWorker *param);
 
 public:
@@ -819,7 +819,7 @@ private:
   uint32_t e_scaleY[NUM_LAYERS];
   uint8_t noise3d[NUM_LAYERS][WIDTH][HEIGHT];
 
-  const String getname() {return String(FPSTR(T_SMOKE));}
+  const String getName() {return String(FPSTR(T_SMOKE));}
   void FillNoise(int8_t layer);     // TODO: join with Comet's
   bool multipleStreamSmokeRoutine(CRGB *leds, EffectWorker *param);
 
@@ -840,7 +840,7 @@ private:
   uint8_t fire18heat[NUM_LEDS];
   uint8_t noise3dx[NUM_LAYERS2][WIDTH][HEIGHT];
 
-  const String getname() {return String(FPSTR(T_FIRE2018));}
+  const String getName() {return String(FPSTR(T_FIRE2018));}
   bool fire2018Routine(CRGB *leds, EffectWorker *param);
 
 public:
@@ -861,7 +861,7 @@ private:
   uint8_t currentRing; // кольцо, которое в настоящий момент нужно провернуть
   uint8_t stepCount; // оставшееся количество шагов, на которое нужно провернуть активное кольцо - случайное от WIDTH/5 до WIDTH-3
 
-  const String getname() {return String(FPSTR(T_RINGS));}
+  const String getName() {return String(FPSTR(T_RINGS));}
   void ringsSet();
   bool ringsRoutine(CRGB *leds, EffectWorker *param);
 
@@ -883,7 +883,7 @@ private:
   bool movedirection;   // направление смещения
   bool direction; // направление вращения в текущем цикле (вертикаль/горизонталь)
 
-  const String getname() {return String(FPSTR(T_CUBE2));}
+  const String getName() {return String(FPSTR(T_CUBE2));}
   void cubesize();
   bool cube2dRoutine(CRGB *leds, EffectWorker *param);
 
@@ -902,7 +902,7 @@ private:
   uint8_t noise3d[NUM_LAYERS][WIDTH][HEIGHT];
 
   uint8_t myScale8(uint8_t x);
-    const String getname() override {
+    const String getName() override {
         switch (effect)
         {
         case EFF_ENUM::EFF_RAIN :
@@ -912,7 +912,7 @@ private:
         case EFF_ENUM::EFF_STORMYRAIN :
             return String(FPSTR(T_STORMYRAIN));
         default:
-            return EffectCalc::getname();
+            return EffectCalc::getName();
         }
     }
   void rain(byte backgroundDepth, byte maxBrightness, byte spawnFreq, byte tailLength, CRGB rainColor, bool splashes, bool clouds, bool storm, bool fixRC = false);
@@ -950,13 +950,13 @@ public:
     UIControl() : id(0), ctype(CONTROL_TYPE::RANGE), control_name(), val(), min(), max(), step() {}
     const uint8_t getId() {return id;}
     const CONTROL_TYPE gettype() {return ctype;}
-    const String &getname() {return control_name;}
-    const String &getval() {return val;}
-    const String &getmin() {return min;}
-    const String &getmax() {return max;}
-    const String &getstep() {return step;}
+    const String &getName() {return control_name;}
+    const String &getVal() {return val;}
+    const String &getMin() {return min;}
+    const String &getMax() {return max;}
+    const String &getStep() {return step;}
 
-    void setval(const String &_val) {val=_val;}
+    void setVal(const String &_val) {val=_val;}
 };
 
 class EffectWorker {
@@ -1005,10 +1005,33 @@ public:
     void initDefault(); // пусть вызывается позже и явно
     ~EffectWorker() { clearEffectList(); clearControlsList(); }
 
-    LList<UIControl*>&getControls() { return selcontrols; }
+    LList<UIControl*>&getControls() { return isSelected() ? selcontrols : controls; }
 
     // дефолтный конструктор
-    EffectWorker() : effects(), controls() { workerset(EFF_NONE); } // initDefault(); убрал из конструктора, т.к. крайне неудобно становится отлаживать...
+    EffectWorker() : effects(), controls(), selcontrols() {
+      for(int8_t id=0;id<3;id++){
+        controls.add(new UIControl(
+            id,                                     // id
+            CONTROL_TYPE::RANGE,                    // type
+            id==0 ? F("Яркость") : id==1 ? F("Скорость") : F("Масштаб"),           // name
+            String(127),                            // value
+            String(1),                              // min
+            String(255),                            // max
+            String(1)                               // step
+        ));
+        // selcontrols.add(new UIControl(
+        //     id,                                     // id
+        //     CONTROL_TYPE::RANGE,                    // type
+        //     id==0 ? F("Яркость") : id==1 ? F("Скорость") : F("Масштаб"),           // name
+        //     String(127),                            // value
+        //     String(1),                              // min
+        //     String(255),                            // max
+        //     String(1)                               // step
+        // ));
+      }
+      //workerset(EFF_NONE);
+      selcontrols = controls;
+    } // initDefault(); убрал из конструктора, т.к. крайне неудобно становится отлаживать..
 
     // конструктор копий эффектов
     EffectWorker(const EffectListElem* base, const EffectListElem* copy);
@@ -1020,17 +1043,20 @@ public:
     // отложенная запись конфига текущего эффекта
     bool autoSaveConfig();
 
+    // пересоздает индекс с текущего списка эффектов
+    void makeIndexFileFromList(const char *folder = nullptr);
+
     byte getModeAmount() {return effects.size();}
 
-    void setBrightness(byte val) {controls[0]->setval(String(val)); if (worker) worker->setbrt(val);}
-    void setSpeed(byte val) {controls[1]->setval(String(val)); if (worker) worker->setspd(val);}
-    void setScale(byte val) {controls[2]->setval(String(val)); if (worker) worker->setscl(val);}
-    void setRval(byte val) {controls[3]->setval(String(val)); if (worker) worker->setrval(val);}
-    byte getBrightness() { return controls.size()>=1 ? controls[0]->getval().toInt() : 0; }
-    byte getSpeed() { return controls.size()>=2 ? controls[1]->getval().toInt() : 0; }
-    byte getScale() { return controls.size()>=3 ? controls[2]->getval().toInt() : 0; }
-    byte getRval() { return controls.size()>=4 ? controls[3]->getval().toInt() : 0; } // фигня конечно, пока все это как затычки...
-    byte isRval() { return controls.size()>=4; } // фигня конечно, пока все это как затычки...
+    //void setBrightness(byte val) {controls[0]->setVal(String(val)); if (worker) worker->setbrt(val);}
+    //void setSpeed(byte val) {controls[1]->setVal(String(val)); if (worker) worker->setspd(val);}
+    //void setScale(byte val) {controls[2]->setVal(String(val)); if (worker) worker->setscl(val);}
+    //void setRval(byte val) {controls[3]->setVal(String(val)); if (worker) worker->setrval(val);}
+    //byte getBrightness() { return controls.size()>=1 ? controls[0]->getVal().toInt() : 0; }
+    //byte getSpeed() { return controls.size()>=2 ? controls[1]->getVal().toInt() : 0; }
+    //byte getScale() { return controls.size()>=3 ? controls[2]->getVal().toInt() : 0; }
+    //byte getRval() { return controls.size()>=4 ? controls[3]->getVal().toInt() : 0; } // фигня конечно, пока все это как затычки...
+    //byte isRval() { return controls.size()>=4; } // фигня конечно, пока все это как затычки...
 
     const String &getEffectName() {return effectName;}
     const String &getOriginalNameName() {return originalName;}
@@ -1038,16 +1064,16 @@ public:
     // текущий эффект или его копия
     const uint16_t getEn() {return curEff;}
 
-    void setBrightnessS(byte val) {selcontrols[0]->setval(String(val)); if (worker && isSelected()) worker->setbrt(val);}
-    void setSpeedS(byte val) {selcontrols[1]->setval(String(val)); if (worker && isSelected()) worker->setspd(val);}
-    void setScaleS(byte val) {selcontrols[2]->setval(String(val)); if (worker && isSelected()) worker->setscl(val);}
-    void setRvalS(byte val) {selcontrols[3]->setval(String(val)); if (worker && isSelected()) worker->setrval(val);}
-    byte getBrightnessS() { return selcontrols.size()>=1 ? selcontrols[0]->getval().toInt() : 0; }
-    byte getSpeedS() { return selcontrols.size()>=2 ? selcontrols[1]->getval().toInt() : 0; }
-    byte getScaleS() { return selcontrols.size()>=3 ? selcontrols[2]->getval().toInt() : 0; }
-    byte getRvalS() { return selcontrols.size()>=4 ? selcontrols[3]->getval().toInt() : 0; } // фигня конечно, пока все это как затычки...
-    byte isRvalS() { return selcontrols.size()>=4; } // фигня конечно, пока все это как затычки...
-    const uint16_t getEnS() {return selEff;}
+    //void setBrightnessS(byte val) {selcontrols[0]->setVal(String(val)); if (worker && isSelected()) worker->setbrt(val);}
+    //void setSpeedS(byte val) {selcontrols[1]->setVal(String(val)); if (worker && isSelected()) worker->setspd(val);}
+    //void setScaleS(byte val) {selcontrols[2]->setVal(String(val)); if (worker && isSelected()) worker->setscl(val);}
+    //void setRvalS(byte val) {selcontrols[3]->setVal(String(val)); if (worker && isSelected()) worker->setrval(val);}
+    //byte getBrightnessS() { return selcontrols.size()>=1 ? selcontrols[0]->getVal().toInt() : 0; }
+    //byte getSpeedS() { return selcontrols.size()>=2 ? selcontrols[1]->getVal().toInt() : 0; }
+    //byte getScaleS() { return selcontrols.size()>=3 ? selcontrols[2]->getVal().toInt() : 0; }
+    //byte getRvalS() { return selcontrols.size()>=4 ? selcontrols[3]->getVal().toInt() : 0; } // фигня конечно, пока все это как затычки...
+    //byte isRvalS() { return selcontrols.size()>=4; } // фигня конечно, пока все это как затычки...
+    //const uint16_t getEnS() {return selEff;}
 
     // следующий эффект, кроме canBeSelected==false
     uint16_t getNext();

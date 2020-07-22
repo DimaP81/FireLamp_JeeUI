@@ -115,7 +115,7 @@ void set_effects_config_param(Interface *interf, JsonObject *data){
     if(!myLamp.effects.autoSaveConfig()){ // отложенная запись, не чаще чем однократно в 30 секунд
         myLamp.ConfigSaveSetup(10*1000); //через 10 секунд сработает еще попытка записи и так до успеха
     }
-
+    myLamp.effects.makeIndexFileFromList(); // обновить индексный файл после возможных изменений
     section_main_frame(interf, data);
 }
 
@@ -150,6 +150,16 @@ void show_effects_config(Interface *interf, JsonObject *data){
 void set_effects_config_list(Interface *interf, JsonObject *data){
     if (!interf || !data) return;
     uint16_t num = (*data)[F("effListConf")].as<uint16_t>();
+
+    // Так  нельзя :(, поскольку интерфейс отдаст только effListConf, а не весь блок...
+    // А мне хотелось бы попереключать список, сделав несколько изменений в флагах, не нажимая для каждого раза "сохранить"
+    // Есть красивый способ это сделать по переключению списка?
+    if(confEff){ // если переключаемся, то сохраняем предыдущие признаки в эффект до переключения
+        LOG(printf_P, PSTR("eff_sel: %d eff_fav : %d\n"), (*data)[F("eff_sel")].as<bool>(),(*data)[F("eff_fav")].as<bool>());
+        // confEff->canBeSelected((*data)[F("eff_sel")] == F("true"));
+        // confEff->isFavorite((*data)[F("eff_fav")] == F("true"));
+    }
+
     confEff = myLamp.effects.getEffect(num);
     show_effects_config_param(interf, data);
     myLamp.demoTimer(T_RESET);
@@ -167,11 +177,11 @@ void block_effects_param(Interface *interf, JsonObject *data){
             interf->range(
             //String(controls[i]->getId())
             controls[i]->getId()==0 ? F("bright") : controls[i]->getId()==1 ? F("speed") : controls[i]->getId()==2 ? F("scale") : String(controls[i]->getId())
-            ,i ? controls[i]->getval().toInt() : myLamp.getNormalizedLampBrightness()
-            ,controls[i]->getmin().toInt()
-            ,controls[i]->getmax().toInt()
-            ,controls[i]->getstep().toInt()
-            ,i ? controls[i]->getname() : myLamp.IsGlobalBrightness() ? F("Глоб. яркость") : F("Яркость")
+            ,i ? controls[i]->getVal().toInt() : myLamp.getNormalizedLampBrightness()
+            ,controls[i]->getMin().toInt()
+            ,controls[i]->getMax().toInt()
+            ,controls[i]->getStep().toInt()
+            ,i ? controls[i]->getName() : myLamp.IsGlobalBrightness() ? F("Глоб. яркость") : F("Яркость")
             , true);
         }
 
@@ -240,8 +250,9 @@ void set_effects_bright(Interface *interf, JsonObject *data){
 void set_effects_speed(Interface *interf, JsonObject *data){
     if (!data) return;
 
-    myLamp.effects.setSpeedS((*data)[F("speed")]);
-    LOG(printf_P, PSTR("Новое значение скорости: %d\n"), myLamp.effects.getSpeedS());
+    //myLamp.effects.setSpeedS((*data)[F("speed")]);
+    myLamp.effects.getControls()[1]->setVal((*data)[F("speed")]);
+    LOG(printf_P, PSTR("Новое значение скорости: %d\n"), (*data)[F("speed")].as<byte>());
 
     myLamp.demoTimer(T_RESET);
     if(!myLamp.effects.autoSaveConfig()){ // отложенная запись, не чаще чем однократно в 30 секунд
@@ -252,8 +263,9 @@ void set_effects_speed(Interface *interf, JsonObject *data){
 void set_effects_scale(Interface *interf, JsonObject *data){
     if (!data) return;
 
-    myLamp.effects.setScaleS((*data)[F("scale")]);
-    LOG(printf_P, PSTR("Новое значение масштаба: %d\n"), myLamp.effects.getScaleS());
+    //myLamp.effects.setScaleS((*data)[F("scale")]);
+    myLamp.effects.getControls()[2]->setVal((*data)[F("scale")]);
+    LOG(printf_P, PSTR("Новое значение масштаба: %d\n"), (*data)[F("scale")].as<byte>());
 
     myLamp.demoTimer(T_RESET);
     if(!myLamp.effects.autoSaveConfig()){ // отложенная запись, не чаще чем однократно в 30 секунд
@@ -264,8 +276,9 @@ void set_effects_scale(Interface *interf, JsonObject *data){
 void set_effects_rval(Interface *interf, JsonObject *data){
     if (!data) return;
 
-    myLamp.effects.setRvalS((*data)[F("rval")]);
-    LOG(printf_P, PSTR("Новое значение R: %d\n"), myLamp.effects.getRvalS());
+    //myLamp.effects.setRvalS((*data)[F("rval")]);
+    myLamp.effects.getControls()[3]->setVal((*data)[F("rval")]);
+    LOG(printf_P, PSTR("Новое значение R: %d\n"), (*data)[F("rval")].as<byte>());
 
     myLamp.demoTimer(T_RESET);
     if(!myLamp.effects.autoSaveConfig()){ // отложенная запись, не чаще чем однократно в 30 секунд

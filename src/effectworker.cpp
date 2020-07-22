@@ -176,11 +176,11 @@ void EffectWorker::workerset(uint16_t effect, const bool isCfgProceed){
 
   if(worker){
     worker->pre_init(static_cast<EFF_ENUM>(effect%256));
-    originalName = effectName = worker->getname(); // сначла заполним дефолтным именем, а затем лишь вычитаем из конфига
+    originalName = effectName = worker->getName(); // сначла заполним дефолтным именем, а затем лишь вычитаем из конфига
     if(isCfgProceed){ // читаем конфиг только если это требуется, для индекса - пропускаем
       loadeffconfig(effect);
       // окончательная инициализация эффекта тут
-      worker->init(static_cast<EFF_ENUM>(effect%256), getBrightness(), getSpeed(), getScale());
+      worker->init(static_cast<EFF_ENUM>(effect%256), (getControls()[0]->getVal()).toInt(), (getControls()[1]->getVal()).toInt(), (getControls()[2]->getVal()).toInt());
     }
   }
 }
@@ -332,9 +332,9 @@ int EffectWorker::loadeffconfig(const uint16_t nb, const char *folder)
 
       curEff = doc[F("nb")].as<uint16_t>();
       flags.mask = doc.containsKey(F("flags")) ? doc[F("flags")].as<uint8_t>() : 255;
-      effectName = doc.containsKey(F("name")) && doc[F("name")].as<String>()!="" ? doc[F("name")].as<String>() : worker->getname();
+      effectName = doc.containsKey(F("name")) && doc[F("name")].as<String>()!="" ? doc[F("name")].as<String>() : worker->getName();
       
-      LOG(printf_P, PSTR("Load MEM: %s - CFG: %s - DEF: %s\n"), effectName.c_str(), doc[F("name")].as<String>().c_str(), worker->getname().c_str());
+      LOG(printf_P, PSTR("Load MEM: %s - CFG: %s - DEF: %s\n"), effectName.c_str(), doc[F("name")].as<String>().c_str(), worker->getName().c_str());
 
       // вычитываею список контроллов
       // повторные - скипаем, нехватающие - создаем
@@ -419,14 +419,14 @@ const String EffectWorker::geteffectpathname(const uint16_t nb, const char *fold
 void EffectWorker::savedefaulteffconfig(uint16_t nb, String &filename){
   // если конфиг не найден, то создаем дефолтный
   // при этом предполагаем, что worker указывает на нужный эффект!!!
-  LOG(printf_P,PSTR("Create default config: %d %s\n"), nb, worker->getname().c_str());
+  LOG(printf_P,PSTR("Create default config: %d %s\n"), nb, worker->getName().c_str());
 
   if (LittleFS.begin()) {
       File configFile;
       String  cfg = worker->defaultuiconfig();
       // workerset(nb,false); // пропускаем сохранение конфигов
-      // LOG(println,worker->getname());
-      cfg.replace(F("@name@"),worker->getname());
+      // LOG(println,worker->getName());
+      cfg.replace(F("@name@"),worker->getName());
       cfg.replace(F("@ver@"),worker->getversion());
       cfg.replace(F("@nb@"), String(nb));
       configFile = LittleFS.open(filename, "w"); // PSTR("w") использовать нельзя, будет исключение!
@@ -454,11 +454,11 @@ void EffectWorker::saveeffconfig(uint16_t nb, char *folder){
           JsonObject var = arr.createNestedObject();
           var[F("id")]=controls[i]->getId();
           var[F("type")]=controls[i]->gettype();
-          var[F("name")]=controls[i]->getname();
-          var[F("val")]=controls[i]->getval();
-          var[F("min")]=controls[i]->getmin();
-          var[F("max")]=controls[i]->getmax();
-          var[F("step")]=controls[i]->getstep();
+          var[F("name")]=controls[i]->getName();
+          var[F("val")]=controls[i]->getVal();
+          var[F("min")]=controls[i]->getMin();
+          var[F("max")]=controls[i]->getMax();
+          var[F("step")]=controls[i]->getStep();
       }
       String cfg_str;
       serializeJson(doc, cfg_str);
@@ -494,7 +494,7 @@ void EffectWorker::makeIndexFile(const char *folder)
       idx.concat(F("["));
       for (uint8_t i = ((uint8_t)EFF_ENUM::EFF_NONE+1); i < (uint8_t)EFF_ENUM::EFF_NONE_LAST; i++){ // EFF_NONE & EFF_NONE_LAST не сохраняем
           workerset(i,false); // пропускаем сохранение конфигов
-          if(worker->getname()!=String(F("@name@"))){
+          if(worker->getName()!=String(F("@name@"))){
               String cfgfilename = geteffectpathname(i, folder);
               if(!LittleFS.exists(cfgfilename)){ // если конфига эффекта не существует, создаем дефолтный
                   savedefaulteffconfig(i, cfgfilename);
@@ -506,13 +506,13 @@ void EffectWorker::makeIndexFile(const char *folder)
 
               // JsonObject var = arr.createNestedObject();
               // var[F("nb")] = i;
-              // var[F("nm")] = nameFromConfig ? effectName.c_str() : worker->getname();
+              // var[F("nm")] = nameFromConfig ? effectName.c_str() : worker->getName();
 
               if(!firstLine) idx.concat(F(",")); // собираем JSON, чтобы записать его за один раз
               idx.concat(F("{\"nb\":"));
               idx.concat(i);
               idx.concat(F(",\"fl\":"));
-              idx.concat(nameFromConfig ? flags.mask : 255);
+              idx.concat(nameFromConfig ? flags.mask : 255); // от хранения имени в индексе отказался, т.к. он становится очень большим...
               idx.concat(F("}"));
 
               firstLine = false; // сбрасываю признак перовой строки
@@ -559,7 +559,7 @@ EffectWorker::EffectWorker(const EffectListElem* base, const EffectListElem* cop
   effectName.concat(F("_"));
   effectName.concat(curEff>>8);
   saveeffconfig(copy->eff_nb); // записываем конфиг
-  updateIndexFile();
+  //updateIndexFile();
 }
 
 // конструктор текущего эффекта
@@ -589,92 +589,134 @@ EffectWorker::EffectWorker(uint16_t delayeffnb)
   ESP.wdtFeed(); // если читается список имен эффектов перебором, то возможен эксепшен вотчдога, сбрасываем его таймер... Для есп32 надо будет этот момент отдельно поглядеть.
 }
 
-// создать или обновить текущий индекс эффекта
-void EffectWorker::updateIndexFile(){
-  if (LittleFS.begin()) {
-      File indexFile;
-      String idx;
-      String filename;
-      filename.concat(F("/eff_index.json"));
-
-      if(!LittleFS.exists(filename)){ // если индексный файл не существует, то на выход
-          return;
-      }
-      DynamicJsonDocument doc(4096);
-      
-      indexFile = LittleFS.open(filename, "r");
-      idx = indexFile.readString();
-      DeserializationError error = deserializeJson(doc,idx);
-
-      if (error) {
-          LOG(print, F("Index deserializeJson error: "));
-          LOG(println, error.c_str()); //error.code()
-          return;
-      }
-
-      JsonArray arr = doc.as<JsonArray>();
-      size_t i=0;
-      for(; i<arr.size(); i++){
-          // ищем что проапдейтить
-          JsonObject var = arr[i];
-          if(var[F("nb")].as<uint16_t>()==curEff){
-              var[F("fl")] = flags.mask;
-          }
-      }
-      if(i>=arr.size()){
-          JsonObject var = arr.createNestedObject();
-          var[F("nb")] = curEff;
-          var[F("fl")] = flags.mask;
-      }
-      idx.clear();
-      serializeJson(doc,idx);
-      indexFile = LittleFS.open(filename, "w");
-      //LOG(println,idx);
-      indexFile.print(idx);
-      indexFile.flush();
-      indexFile.close();
-      doc.clear();
-  }
-}
-
-// удалить эффект из индексного файла
-void EffectWorker::deleteFromIndexFile(const uint16_t effect)
+void EffectWorker::makeIndexFileFromList(const char *folder)
 {
   if (LittleFS.begin()) {
       File indexFile;
       String idx;
       String filename;
+      if (folder != nullptr) {
+          filename.concat(F("/"));
+          filename.concat(folder);
+      }
       filename.concat(F("/eff_index.json"));
 
-      if(!LittleFS.exists(filename)){ // если индексный файл не существует, то на выход
-          return;
-      }
-      DynamicJsonDocument doc(4096);
-      indexFile = LittleFS.open(filename, "r");
-      idx = indexFile.readString();
-      DeserializationError error = deserializeJson(doc,idx);
+      bool firstLine = true;
+      idx.concat(F("["));
+      for (uint8_t i = 0; i < effects.size(); i++){
+              if(!firstLine) idx.concat(F(","));
+              idx.concat(F("{\"nb\":"));
+              idx.concat(effects[i]->eff_nb);
+              idx.concat(F(",\"fl\":"));
+              idx.concat(effects[i]->flags.mask);
+              idx.concat(F("}"));
 
-      if (error) {
-          LOG(print, F("Index deserializeJson error: "));
-          LOG(println, error.c_str()); //error.code()
-          return;
+              firstLine = false; // сбрасываю признак первой строки
       }
-
-      JsonArray arr = doc.as<JsonArray>();
-      for(size_t i=0; i<arr.size(); i++){
-          // ищем что удалить
-          JsonObject var = arr[i];
-          if(var[F("nb")].as<uint16_t>()==effect)
-            arr.remove(i);
-      }
-      idx.clear();
-      serializeJson(arr,idx);
-      indexFile = LittleFS.open(filename, "w");
+      idx.concat(F("]"));
+      indexFile = LittleFS.open(filename, "w"); // PSTR("w") использовать нельзя, будет исключение!
       indexFile.print(idx);
       indexFile.flush();
       indexFile.close();
-      doc.clear();
   }
+  LOG(println,F("Индекс эффектов обновлен!"));
+  delay(50); // задержка после записи
+}
+// создать или обновить текущий индекс эффекта
+void EffectWorker::updateIndexFile()
+{
+  // Я передумал, тупо пересоздадим индексный файл из списка и не морочим голову :), так будет проще и по идее надежнее, чем адресно править
+  // предыдущий код пусть пока еще повисит навсякий случай
+  makeIndexFileFromList();
+
+  // if (LittleFS.begin()) {
+  //     File indexFile;
+  //     String idx;
+  //     String filename;
+  //     filename.concat(F("/eff_index.json"));
+
+  //     if(!LittleFS.exists(filename)){ // если индексный файл не существует, то на выход
+  //         return;
+  //     }
+  //     DynamicJsonDocument doc(4096);
+      
+  //     indexFile = LittleFS.open(filename, "r");
+  //     idx = indexFile.readString();
+  //     DeserializationError error = deserializeJson(doc,idx);
+
+  //     if (error) {
+  //         LOG(print, F("Index deserializeJson error: "));
+  //         LOG(println, error.c_str()); //error.code()
+  //         return;
+  //     }
+
+  //     JsonArray arr = doc.as<JsonArray>();
+  //     size_t i=0;
+  //     for(; i<arr.size(); i++){
+  //         // ищем что проапдейтить
+  //         JsonObject var = arr[i];
+  //         if(var[F("nb")].as<uint16_t>()==curEff){
+  //             var[F("fl")] = flags.mask;
+  //         }
+  //     }
+  //     if(i>=arr.size()){
+  //         JsonObject var = arr.createNestedObject();
+  //         var[F("nb")] = curEff;
+  //         var[F("fl")] = flags.mask;
+  //     }
+  //     idx.clear();
+  //     serializeJson(doc,idx);
+  //     indexFile = LittleFS.open(filename, "w");
+  //     //LOG(println,idx);
+  //     indexFile.print(idx);
+  //     indexFile.flush();
+  //     indexFile.close();
+  //     doc.clear();
+  // }
+}
+
+// удалить эффект из индексного файла
+void EffectWorker::deleteFromIndexFile(const uint16_t effect)
+{
+  // Я передумал, тупо пересоздадим индексный файл из списка и не морочим голову :), так будет проще и по идее надежнее, чем адресно править
+  // предыдущий код пусть пока еще повисит навсякий случай
+  makeIndexFileFromList();
+
+  // if (LittleFS.begin()) {
+  //     File indexFile;
+  //     String idx;
+  //     String filename;
+  //     filename.concat(F("/eff_index.json"));
+
+  //     if(!LittleFS.exists(filename)){ // если индексный файл не существует, то на выход
+  //         return;
+  //     }
+  //     DynamicJsonDocument doc(4096);
+  //     indexFile = LittleFS.open(filename, "r");
+  //     idx = indexFile.readString();
+  //     DeserializationError error = deserializeJson(doc,idx);
+
+  //     if (error) {
+  //         LOG(print, F("Index deserializeJson error: "));
+  //         LOG(println, error.c_str()); //error.code()
+  //         return;
+  //     }
+
+  //     JsonArray arr = doc.as<JsonArray>();
+  //     for(size_t i=0; i<arr.size(); i++){
+  //         // ищем что удалить
+  //         JsonObject var = arr[i];
+  //         if(var[F("nb")].as<uint16_t>()==effect)
+  //           arr.remove(i);
+  //     }
+  //     idx.clear();
+  //     serializeJson(arr,idx);
+  //     indexFile = LittleFS.open(filename, "w");
+  //     indexFile.print(idx);
+  //     indexFile.flush();
+  //     indexFile.close();
+  //     doc.clear();
+  // }
 }
 
 // удалить эффект
@@ -684,7 +726,7 @@ void EffectWorker::deleteEffect(const EffectListElem *eff)
   for(int i=0; i<effects.size(); i++){
       prevEff = effects[i]->eff_nb;
       if(effects[i]->eff_nb==eff->eff_nb){
-          deleteFromIndexFile(eff->eff_nb);
+          //deleteFromIndexFile(eff->eff_nb);
           delete effects.remove(i);
           break;
       }
@@ -876,7 +918,7 @@ void EffectWorker::setSelected(uint16_t effnb)
   tmpEffect->controls = fake;
   delete tmpEffect;
   // for(int i=0; i<selcontrols.size(); i++){
-  //   LOG(println,selcontrols[i]->getname());
+  //   LOG(println,selcontrols[i]->getName());
   // }
 }
 
